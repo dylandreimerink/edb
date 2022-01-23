@@ -5,25 +5,14 @@ import (
 	"strings"
 )
 
-var cmdMaps map[*[]Command]map[string]Command
-
-func commandMap(cmds *[]Command) map[string]Command {
-	if cmdMaps == nil {
-		cmdMaps = make(map[*[]Command]map[string]Command)
-	}
-
-	if m, exists := cmdMaps[cmds]; exists {
-		return m
-	}
-
+func commandMap(cmds []Command) map[string]Command {
 	commandMap := make(map[string]Command)
-	for _, cmd := range *cmds {
+	for _, cmd := range cmds {
 		commandMap[cmd.Name] = cmd
 		for _, alias := range cmd.Aliases {
 			commandMap[alias] = cmd
 		}
 	}
-	cmdMaps[cmds] = commandMap
 	return commandMap
 }
 
@@ -58,8 +47,8 @@ func helpExec(args []string) {
 		}
 	}
 
-	var helpCmd func(cmds *[]Command, args []string) bool
-	helpCmd = func(cmds *[]Command, args []string) bool {
+	var helpCmd func(cmds []Command, args []string) bool
+	helpCmd = func(cmds []Command, args []string) bool {
 		cmd, ok := commandMap(cmds)[args[0]]
 		if !ok {
 			return false
@@ -71,7 +60,7 @@ func helpExec(args []string) {
 		// If this command has sub commands and we have arguments left, show help for the sub-command instread
 		if len(cmd.Subcommands) > 0 && len(args) > 0 {
 			// If we were not able to find a sub command for the given args, show the help for this command anyway
-			if helpCmd(&cmd.Subcommands, args) {
+			if helpCmd(cmd.Subcommands, args) {
 				return true
 			}
 		}
@@ -104,7 +93,7 @@ func helpExec(args []string) {
 	}
 
 	if len(args) > 0 {
-		if helpCmd(&rootCommands, args) {
+		if helpCmd(rootCommands, args) {
 			return
 		}
 	}

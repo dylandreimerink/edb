@@ -10,9 +10,11 @@ import (
 )
 
 var (
-	vm         *emulator.VM
-	curCtx     int
-	contexts   []Context
+	vm *emulator.VM
+
+	curCtx   int
+	contexts []Context
+
 	entrypoint int
 	programs   []gobpfld.BPFProgram
 	progName   []string
@@ -37,6 +39,9 @@ func main() {
 		completer,
 		prompt.OptionTitle("eBPF debugger"),
 		prompt.OptionPrefix("(edb) "),
+		prompt.OptionAddKeyBind(prompt.KeyBind{Key: prompt.ControlC, Fn: func(b *prompt.Buffer) {
+			fmt.Println("Ctrl+C disabled, please use the 'quit' or 'exit' command")
+		}}),
 	)
 	p.Run()
 }

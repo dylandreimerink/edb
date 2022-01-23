@@ -4,15 +4,19 @@ import (
 	"debug/dwarf"
 	"fmt"
 	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 
 	prompt "github.com/c-bata/go-prompt"
 	"github.com/dylandreimerink/gobpfld"
 	"github.com/dylandreimerink/gobpfld/ebpf"
+	"github.com/lithammer/fuzzysearch/fuzzy"
 	"github.com/mgutz/ansi"
 )
 
 type CmdFn func(args []string)
+type CompletionFn func(args []string) []prompt.Suggest
 
 type CmdArg struct {
 	Name     string
@@ -20,13 +24,14 @@ type CmdArg struct {
 }
 
 type Command struct {
-	Name        string
-	Summary     string
-	Description string
-	Aliases     []string
-	Exec        CmdFn
-	Args        []CmdArg
-	Subcommands []Command
+	Name             string
+	Summary          string
+	Description      string
+	Aliases          []string
+	Exec             CmdFn
+	Args             []CmdArg
+	Subcommands      []Command
+	CustomCompletion CompletionFn
 }
 
 var (
@@ -137,7 +142,7 @@ func executor(in string) {
 	lastArgs = args
 
 	var cmd Command
-	cmdList := &rootCommands
+	cmdList := rootCommands
 	// Copy slice header, which we intend to modify
 	modArgs := args
 	for {
@@ -154,7 +159,7 @@ func executor(in string) {
 
 		// If this command has sub commands and we also have more arguments, continue resolving
 		if len(cmd.Subcommands) > 0 && len(modArgs) > 0 {
-			cmdList = &cmd.Subcommands
+			cmdList = cmd.Subcommands
 			continue
 		}
 
@@ -174,27 +179,82 @@ func executor(in string) {
 }
 
 func completer(in prompt.Document) []prompt.Suggest {
-	w := in.GetWordBeforeCursor()
-	if w == "" {
-		return []prompt.Suggest{}
+	inText := strings.TrimSpace(in.Text)
+
+	if inText == "" {
+		return nil
 	}
 
-	// TODO cache completions
-	var completions []prompt.Suggest
-	for _, cmd := range rootCommands {
-		completions = append(completions, prompt.Suggest{
+	quoted := false
+	args := strings.FieldsFunc(inText, func(r rune) bool {
+		if r == '"' {
+			quoted = !quoted
+		}
+		return !quoted && r == ' '
+	})
+	for i, arg := range args {
+		args[i] = strings.Trim(arg, "\"")
+	}
+
+	var cmd Command
+	cmdList := rootCommands
+	// Copy slice header, which we intend to modify
+	modArgs := args
+	for {
+		if len(modArgs) == 0 {
+			break
+		}
+
+		var found bool
+		cmd, found = commandMap(cmdList)[modArgs[0]]
+		if !found {
+			break
+		}
+
+		// If this command has sub commands and we also have more arguments, continue resolving
+		if len(cmd.Subcommands) > 0 && len(modArgs) > 0 {
+			modArgs = modArgs[1:]
+			cmdList = cmd.Subcommands
+			continue
+		}
+
+		// If a command has no Exec, we are not meant to execute it, rater a subcommand, so show help
+		if cmd.CustomCompletion != nil {
+			return cmd.CustomCompletion(modArgs[1:])
+		}
+
+		break
+	}
+
+	cmds := make([]string, len(cmdList))
+	for i, cmd := range cmdList {
+		cmds[i] = cmd.Name
+	}
+
+	search := ""
+	if len(modArgs) > 0 {
+		search = modArgs[0]
+	}
+
+	var suggestions []prompt.Suggest
+	cmdMap := commandMap(cmdList)
+
+	ranks := fuzzy.RankFind(search, cmds)
+	sort.Sort(ranks)
+
+	for _, rank := range ranks {
+		cmd, found := cmdMap[rank.Target]
+		if !found {
+			continue
+		}
+
+		suggestions = append(suggestions, prompt.Suggest{
 			Text:        cmd.Name,
 			Description: cmd.Summary,
 		})
-		for _, alias := range cmd.Aliases {
-			completions = append(completions, prompt.Suggest{
-				Text:        alias,
-				Description: cmd.Summary,
-			})
-		}
 	}
 
-	return prompt.FilterHasPrefix(completions, w, true)
+	return suggestions
 }
 
 func getBTFFunc() gobpfld.BTFFunc {
@@ -240,4 +300,52 @@ func dwarfTypeName(node *EntryNode) string {
 	}
 
 	return ""
+}
+
+func fileCompletion(args []string) []prompt.Suggest {
+	path := "."
+	if len(args) > 0 {
+		path = args[0]
+	}
+
+	pathDir := path
+	// If it is a directory, show the contents of the directory
+	if stat, err := os.Stat(path); err != nil || stat.IsDir() {
+		pathDir = filepath.Dir(path)
+	}
+
+	// pathDir := filepath.Dir(path)
+	dir, err := os.ReadDir(pathDir)
+	if err != nil {
+		return nil
+	}
+
+	fileNames := make([]string, len(dir))
+	for i, file := range dir {
+		if file.IsDir() {
+			fileNames[i] = file.Name() + "/"
+		} else {
+			fileNames[i] = file.Name()
+		}
+	}
+
+	pathDir, file := filepath.Split(path)
+
+	ranks := fuzzy.RankFind(file, fileNames)
+	sort.Sort(ranks)
+
+	var suggestion []prompt.Suggest
+	for _, rank := range ranks {
+		var text string
+		if pathDir == "" {
+			text = rank.Target
+		} else {
+			text = fmt.Sprintf("%s%s", pathDir, rank.Target)
+		}
+		suggestion = append(suggestion, prompt.Suggest{
+			Text: text,
+		})
+	}
+
+	return suggestion
 }

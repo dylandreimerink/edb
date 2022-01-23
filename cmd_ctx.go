@@ -26,24 +26,19 @@ var cmdCtx = Command{
 		},
 		{
 			Name:    "load",
-			Summary: "Load a context YAML file",
+			Summary: "Load a context JSON file",
 			Description: "eBPF programs are called with 'contexts', which are pointers, typically to kernel memory. " +
 				"The context contains the information which the eBPF program can use to make decisions, for XDP programs " +
 				"this context contains pointers to a network packet, for TC/Socket filter/cGroup SKB programs the context " +
 				"is a __sk_buff socket buffer, kProbes get the host CPU registers, ect.\n" +
 				"\n" +
 				"Since this debugger runs the eBPF program in the userspace emulator, we need to pass our own context " +
-				"to the program. Using this command we can load YAML files containing context data into the debugger.\n" +
+				"to the program. Using this command we can load JSON files containing context data into the debugger.\n" +
 				"\n" +
-				"TODO: describe the YAML format here",
-			Aliases: []string{"ld"},
-			Exec:    loadCtxExec,
-		},
-		{
-			Name:    "list",
-			Summary: "List loaded contexts",
-			Aliases: []string{"ls"},
-			Exec:    listCtxExec,
+				"TODO: describe the JSON format here",
+			Aliases:          []string{"ld"},
+			Exec:             loadCtxExec,
+			CustomCompletion: fileCompletion,
 		},
 		{
 			Name:    "set",

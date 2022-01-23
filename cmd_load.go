@@ -25,6 +25,7 @@ var cmdLoad = Command{
 			Required: true,
 		},
 	},
+	CustomCompletion: fileCompletion,
 }
 
 func loadExec(args []string) {
