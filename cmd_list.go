@@ -8,10 +8,10 @@ import (
 )
 
 var cmdList = Command{
-	Name:     "list",
-	Aliasses: []string{"ls"},
-	Summary:  "Lists the lines of the source code",
-	Exec:     listLinesExec,
+	Name:    "list",
+	Aliases: []string{"ls"},
+	Summary: "Lists the lines of the source code",
+	Exec:    listLinesExec,
 }
 
 func listLinesExec(args []string) {

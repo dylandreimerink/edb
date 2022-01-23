@@ -6,10 +6,10 @@ import (
 )
 
 var cmdListInstructions = Command{
-	Name:     "list-instructions",
-	Aliasses: []string{"li"},
-	Summary:  "Lists the instructions of the program",
-	Exec:     listInstructionExec,
+	Name:    "list-instructions",
+	Aliases: []string{"li"},
+	Summary: "Lists the instructions of the program",
+	Exec:    listInstructionExec,
 }
 
 func listInstructionExec(args []string) {

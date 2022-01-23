@@ -19,7 +19,7 @@ func commandMap(cmds *[]Command) map[string]Command {
 	commandMap := make(map[string]Command)
 	for _, cmd := range *cmds {
 		commandMap[cmd.Name] = cmd
-		for _, alias := range cmd.Aliasses {
+		for _, alias := range cmd.Aliases {
 			commandMap[alias] = cmd
 		}
 	}
@@ -29,7 +29,7 @@ func commandMap(cmds *[]Command) map[string]Command {
 
 var helpCmd = Command{
 	Name:        "help",
-	Aliasses:    []string{"h"},
+	Aliases:     []string{"h"},
 	Summary:     "Show help text / available commands",
 	Description: "Show all a summary of all commands or detailed help for the specified command",
 	Exec:        helpExec,
@@ -43,10 +43,10 @@ func helpExec(args []string) {
 	printCmds := func(cmds []Command) {
 		for _, cmd := range cmds {
 			name := cmd.Name
-			if len(cmd.Aliasses) > 1 {
-				name = fmt.Sprintf("%s (Aliasses: %s)", cmd.Name, strings.Join(cmd.Aliasses, ", "))
-			} else if len(cmd.Aliasses) == 1 {
-				name = fmt.Sprintf("%s (Alias: %s)", cmd.Name, cmd.Aliasses[0])
+			if len(cmd.Aliases) > 1 {
+				name = fmt.Sprintf("%s (Aliases: %s)", cmd.Name, strings.Join(cmd.Aliases, ", "))
+			} else if len(cmd.Aliases) == 1 {
+				name = fmt.Sprintf("%s (Alias: %s)", cmd.Name, cmd.Aliases[0])
 			}
 
 			padLen := 40 - len(name)

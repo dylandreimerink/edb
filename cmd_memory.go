@@ -7,15 +7,43 @@ import (
 )
 
 var cmdMemory = Command{
-	Name:     "memory",
-	Aliasses: []string{"mem"},
-	Summary:  "Show the contents of memory",
-	Exec:     listMemoryExec,
+	Name:    "memory",
+	Aliases: []string{"mem"},
+	Summary: "Show the contents of memory",
+	Exec:    listMemoryExec,
 }
 
 func listMemoryExec(args []string) {
 	auxMem := make([]emulator.Memory, 0)
-	auxName := make([]string, 0)
+
+	for _, r := range []emulator.RegisterValue{
+		vm.Registers.R0,
+		vm.Registers.R1,
+		vm.Registers.R2,
+		vm.Registers.R3,
+		vm.Registers.R4,
+		vm.Registers.R5,
+		vm.Registers.R6,
+		vm.Registers.R7,
+		vm.Registers.R8,
+		vm.Registers.R9,
+	} {
+		ptr, ok := r.(*emulator.MemoryPtr)
+		if !ok {
+			continue
+		}
+
+		exists := false
+		for _, m := range auxMem {
+			if m == ptr.Memory {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			auxMem = append(auxMem, ptr.Memory)
+		}
+	}
 
 	loopValueMem := func(valMem *emulator.ValueMemory, print func(val emulator.RegisterValue, index, size int)) {
 		var lastVal emulator.RegisterValue
@@ -35,7 +63,6 @@ func listMemoryExec(args []string) {
 				}
 				if !exists {
 					auxMem = append(auxMem, val.Memory)
-					auxName = append(auxName, val.Name)
 				}
 			}
 
@@ -85,14 +112,14 @@ func listMemoryExec(args []string) {
 
 			loopValueMem(mem, func(val emulator.RegisterValue, index, size int) {
 				if first {
-					fmt.Printf("%s:\n", auxName[i])
+					fmt.Printf("%s:\n", mem.Name())
 					first = false
 				}
 				fmt.Printf(
 					"%s %s = %s\n",
 					blue(fmt.Sprintf(
 						"%s%+d",
-						auxName[i],
+						mem.Name(),
 						index,
 					)),
 					green(fmt.Sprintf("(u%d)", size*8)),
@@ -104,7 +131,7 @@ func listMemoryExec(args []string) {
 			}
 
 		case *emulator.ByteMemory:
-			fmt.Printf("%s:\n", auxName[i])
+			fmt.Printf("%s:\n", mem.Name())
 			fmt.Print(blue("0000 "))
 			for j := 0; j < mem.Size(); j++ {
 				fmt.Printf("%02X ", mem.Backing[j])

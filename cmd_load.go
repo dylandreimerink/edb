@@ -15,7 +15,7 @@ import (
 
 var cmdLoad = Command{
 	Name:        "load",
-	Aliasses:    nil,
+	Aliases:     nil,
 	Summary:     "Load an ELF file",
 	Description: "This command parses the ELF file and loads all programs and maps contained within",
 	Exec:        loadExec,
@@ -137,5 +137,11 @@ func loadExec(args []string) {
 		progDwarf = append(progDwarf, det)
 
 		fmt.Printf("Loaded program '%s' at program index %d\n", name, len(vm.Programs)-1)
+	}
+
+	// If we are not in the middle of program execution, reset the VM.
+	// We do this to set the context of the program(R1)
+	if vm.Registers.PC == 0 && vm.Registers.PI == entrypoint {
+		cmdReset.Exec(nil)
 	}
 }

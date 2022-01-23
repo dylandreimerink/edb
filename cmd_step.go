@@ -3,10 +3,10 @@ package main
 import "fmt"
 
 var cmdStep = Command{
-	Name:     "step",
-	Aliasses: []string{"s"},
-	Summary:  "Step through the program one line a time",
-	Exec:     stepExec,
+	Name:    "step",
+	Aliases: []string{"s"},
+	Summary: "Step through the program one line a time",
+	Exec:    stepExec,
 }
 
 func stepExec(args []string) {

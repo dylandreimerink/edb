@@ -9,7 +9,6 @@ import (
 	prompt "github.com/c-bata/go-prompt"
 	"github.com/dylandreimerink/gobpfld"
 	"github.com/dylandreimerink/gobpfld/ebpf"
-	"github.com/dylandreimerink/gobpfld/emulator"
 	"github.com/mgutz/ansi"
 )
 
@@ -24,7 +23,7 @@ type Command struct {
 	Name        string
 	Summary     string
 	Description string
-	Aliasses    []string
+	Aliases     []string
 	Exec        CmdFn
 	Args        []CmdArg
 	Subcommands []Command
@@ -43,9 +42,9 @@ func init() {
 	rootCommands = []Command{
 		helpCmd,
 		{
-			Name:     "exit",
-			Aliasses: []string{"q", "quit"},
-			Summary:  "Exits the debugger",
+			Name:    "exit",
+			Aliases: []string{"q", "quit"},
+			Summary: "Exits the debugger",
 			Exec: func(args []string) {
 				os.Exit(0)
 			},
@@ -58,7 +57,9 @@ func init() {
 			},
 		},
 		cmdLoad,
-		cmdPrograms,
+		cmdCtx,
+		cmdProgram,
+		cmdReset,
 		cmdRegisters,
 		cmdStepInstruction,
 		cmdListInstructions,
@@ -83,15 +84,7 @@ func printRed(format string, args ...interface{}) {
 func getBTFLine() *gobpfld.BTFLine {
 	btf := programs[vm.Registers.PI].GetAbstractProgram().BTF
 
-	rawOffset := 0
-	for i := 0; i < vm.Registers.PC; i++ {
-		rawOffset += ebpf.BPFInstSize
-
-		// Load constant 64 bit is special since it is the only instruction to take up double the bytes
-		if _, ok := vm.Programs[vm.Registers.PI][i].(*emulator.LoadConstant64bit); ok {
-			rawOffset += ebpf.BPFInstSize
-		}
-	}
+	rawOffset := vm.Registers.PC * ebpf.BPFInstSize
 
 	var lastLine *gobpfld.BTFLine
 	for i, line := range btf.Lines {
@@ -193,7 +186,7 @@ func completer(in prompt.Document) []prompt.Suggest {
 			Text:        cmd.Name,
 			Description: cmd.Summary,
 		})
-		for _, alias := range cmd.Aliasses {
+		for _, alias := range cmd.Aliases {
 			completions = append(completions, prompt.Suggest{
 				Text:        alias,
 				Description: cmd.Summary,

@@ -1,0 +1,57 @@
+[
+    {
+        "name": "Basic XDP example",
+        "ctx": "xdp_md",
+        "data": {
+            "pkt": {
+                "type": "memory",
+                "byteorder": "be",
+                "value": "AAECAwQFBgcICAkPCwwNCg4PEBESExQ="
+            },
+            "data": {
+                "type": "ptr",
+                "value": "pkt",
+                "offset": 0,
+                "size": 32
+            },
+            "data_end": {
+                "type": "ptr",
+                "value": "pkt",
+                "offset": 23,
+                "size": 32
+            },
+            "data_meta": {
+                "type": "ptr",
+                "value": "pkt",
+                "offset": 0,
+                "size": 32
+            },
+            "ingress_ifindex": {
+                "type": "int",
+                "value": 1,
+                "size": 32
+            },
+            "rx_queue_index": {
+                "type": "int",
+                "value": 2,
+                "size": 32
+            },
+            "egress_ifindex": {
+                "type": "int",
+                "value": 3,
+                "size": 32
+            },
+            "xdp_md": {
+                "type": "struct",
+                "fields": [
+                    "data",
+                    "data_end",
+                    "data_meta",
+                    "ingress_ifindex",
+                    "rx_queue_index",
+                    "egress_ifindex"
+                ]
+            }
+        }
+    }
+]

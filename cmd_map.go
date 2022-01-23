@@ -7,15 +7,15 @@ import (
 
 var cmdMap = Command{
 	Name:        "map",
-	Aliasses:    []string{"maps"},
+	Aliases:     []string{"maps"},
 	Summary:     "Map related operations",
 	Description: "",
 	Subcommands: []Command{
 		{
-			Name:     "list",
-			Aliasses: []string{"ls"},
-			Summary:  "Lists all loaded maps",
-			Exec:     listMapsExec,
+			Name:    "list",
+			Aliases: []string{"ls"},
+			Summary: "Lists all loaded maps",
+			Exec:    listMapsExec,
 		},
 	},
 }

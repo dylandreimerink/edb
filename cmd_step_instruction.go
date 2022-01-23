@@ -3,10 +3,10 @@ package main
 import "fmt"
 
 var cmdStepInstruction = Command{
-	Name:     "step-instruction",
-	Aliasses: []string{"si"},
-	Summary:  "Step through the program one instruction a time",
-	Exec:     stepInstructionExec,
+	Name:    "step-instruction",
+	Aliases: []string{"si"},
+	Summary: "Step through the program one instruction a time",
+	Exec:    stepInstructionExec,
 }
 
 func stepInstructionExec(args []string) {

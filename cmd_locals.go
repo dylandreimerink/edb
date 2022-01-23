@@ -6,10 +6,10 @@ import (
 )
 
 var cmdLocals = Command{
-	Name:     "locals",
-	Aliasses: []string{"lv"},
-	Summary:  "Lists the local variables",
-	Exec:     listLocalVarsExec,
+	Name:    "locals",
+	Aliases: []string{"lv"},
+	Summary: "Lists the local variables",
+	Exec:    listLocalVarsExec,
 }
 
 func listLocalVarsExec(args []string) {

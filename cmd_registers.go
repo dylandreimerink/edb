@@ -5,10 +5,10 @@ import (
 )
 
 var cmdRegisters = Command{
-	Name:     "registers",
-	Aliasses: []string{"r", "regs"},
-	Summary:  "Show registers",
-	Exec:     registersExec,
+	Name:    "registers",
+	Aliases: []string{"r", "regs"},
+	Summary: "Show registers",
+	Exec:    registersExec,
 }
 
 func registersExec(args []string) {
