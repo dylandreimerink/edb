@@ -726,8 +726,6 @@ func (f *File) applyRelocationsBPF(dst []byte, rels []byte) error {
 		symNo := rel.Info >> 32
 		t := R_BPF(rel.Info & 0xffff)
 
-		// spew.Dump(symbols[symNo-1])
-
 		if symNo == 0 || symNo > uint64(len(symbols)) {
 			continue
 		}
@@ -752,7 +750,6 @@ func (f *File) applyRelocationsBPF(dst []byte, rels []byte) error {
 				continue
 			}
 			val32 := uint32(sym.Value)
-			// spew.Dump(dst[rel.Off : rel.Off+4])
 			f.ByteOrder.PutUint32(dst[rel.Off:rel.Off+4], val32)
 		}
 

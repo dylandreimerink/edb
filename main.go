@@ -15,10 +15,11 @@ var (
 	curCtx   int
 	contexts []Context
 
-	entrypoint int
-	programs   []gobpfld.BPFProgram
-	progName   []string
-	progDwarf  []*DET
+	entrypoint  int
+	programs    []gobpfld.BPFProgram
+	progName    []string
+	progDwarf   []*DET
+	breakpoints []Breakpoint
 )
 
 func main() {

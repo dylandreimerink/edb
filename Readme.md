@@ -34,6 +34,8 @@ Commands:
   map (Alias: maps) ----------------------- Map related operations
   locals (Alias: lv) ---------------------- Lists the local variables
   memory (Alias: mem) --------------------- Show the contents of memory
+  breakpoint (Aliases: b, br, bp, break) -- Commands related to breakpoints
+  continue (Alias: c) --------------------- Continue execution of the program until it exists or a breakpoint is hit
 ```
 
 ## Desired features
@@ -41,14 +43,10 @@ Commands:
 - Memory modification - we can currently view memory, but there is no way to modify it, would be nice if we could change memory contents.
 - Local variable inspection - we already can list local variables, but we have to somehow figure out in which register/memory location its value lives and how to print it based on its type.
 - Breakpoints
-  - `breakpoint list` command to list breakpoints
-  - `breakpoint set {program name} {instruction | line-ref}` - Set Unconditional breakpoint
-  - `breakpoint set {program name} {instruction | line-ref} {condition (r1=0x1234)}` Conditional breakpoints
-  - `breakpoint set-log {program name} {instruction | line-ref} {message}` - Set Unconditional logging breakpoint
-  - `breakpoint set-log {program name} {instruction | line-ref} {condition (r1=0x1234)} {message}` set conditional logging breakpoint
-  - `breakpoint disable {breakpoint id}` disable a breakpoint
-  - `breakpoint enable {breakpoint id}` enable a breakpoint
-- `continue` command - to just run the program until it exists or hits a breakpoint
+  - Display markers for breakpoints in `list` and `list-instructions`
+  - `breakpoint set {line-ref} {condition (r1=0x1234)}` Conditional breakpoints
+  - `breakpoint set-log {line-ref} {message}` - Set Unconditional logging breakpoint
+  - `breakpoint set-log {line-ref} {condition (r1=0x1234)} {message}` set conditional logging breakpoint
 - `continue-all` command - continue execution of all contexts until there are no more contexts or we hit a breakpoint
 - `reset-maps` command - resets the contents of the maps
 - Load ctx files with cli flag
