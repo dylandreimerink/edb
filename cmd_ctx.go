@@ -51,6 +51,7 @@ var cmdCtx = Command{
 				Name:     "context index",
 				Required: true,
 			}},
+			// TODO add custom suggestions, list contexts
 		},
 	},
 }

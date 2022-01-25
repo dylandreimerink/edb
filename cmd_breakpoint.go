@@ -32,6 +32,7 @@ var cmdBreakpoint = Command{
 				},
 				// TODO add conditional
 			},
+			// TODO add custom suggestions for locspec
 		},
 		{
 			Name:    "enable",
@@ -41,6 +42,7 @@ var cmdBreakpoint = Command{
 				Name:     "breakpoint id",
 				Required: true,
 			}},
+			// TODO add custom suggestions, list disabled breakpoints
 		},
 		{
 			Name:    "disable",
@@ -50,7 +52,9 @@ var cmdBreakpoint = Command{
 				Name:     "breakpoint id",
 				Required: true,
 			}},
+			// TODO add custom suggestions, list enabled breakpoints
 		},
+		// TODO add delete breakpoint?
 	},
 }
 

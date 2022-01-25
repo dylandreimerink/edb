@@ -23,7 +23,8 @@ func listLinesExec(args []string) {
 	btfLine := getBTFLine()
 
 	if btfLine == nil {
-		printRed("can't find sources for current instruction\n")
+		fmt.Println(yellow("Program has no BTF, can't list lines, showing instruction instread"))
+		listInstructionExec(nil)
 		return
 	}
 

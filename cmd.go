@@ -47,6 +47,7 @@ var (
 )
 
 func init() {
+	// TODO sort and group root commands by function, the way delve does it.
 	rootCommands = []Command{
 		helpCmd,
 		{
@@ -78,6 +79,7 @@ func init() {
 		cmdMemory,
 		cmdBreakpoint,
 		cmdContinue,
+		// TODO add `files` command to list all source files of all or a specific program
 	}
 }
 
@@ -93,6 +95,9 @@ func printRed(format string, args ...interface{}) {
 
 func getBTFLine() *gobpfld.BTFLine {
 	btf := programs[vm.Registers.PI].GetAbstractProgram().BTF
+	if btf == nil || len(btf.Lines) == 0 {
+		return nil
+	}
 
 	rawOffset := vm.Registers.PC * ebpf.BPFInstSize
 
@@ -231,9 +236,10 @@ func completer(in prompt.Document) []prompt.Suggest {
 		break
 	}
 
-	cmds := make([]string, len(cmdList))
-	for i, cmd := range cmdList {
-		cmds[i] = cmd.Name
+	cmds := make([]string, 0, len(cmdList))
+	for _, cmd := range cmdList {
+		cmds = append(cmds, cmd.Name)
+		cmds = append(cmds, cmd.Aliases...)
 	}
 
 	search := ""
@@ -254,7 +260,7 @@ func completer(in prompt.Document) []prompt.Suggest {
 		}
 
 		suggestions = append(suggestions, prompt.Suggest{
-			Text:        cmd.Name,
+			Text:        rank.Target,
 			Description: cmd.Summary,
 		})
 	}
