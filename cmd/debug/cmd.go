@@ -1,4 +1,4 @@
-package main
+package debug
 
 import (
 	"debug/dwarf"
@@ -79,6 +79,7 @@ func init() {
 		cmdMemory,
 		cmdBreakpoint,
 		cmdContinue,
+		cmdContinueAll,
 		// TODO add `files` command to list all source files of all or a specific program
 	}
 }

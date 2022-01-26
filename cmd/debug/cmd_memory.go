@@ -1,4 +1,4 @@
-package main
+package debug
 
 import (
 	"fmt"
@@ -16,6 +16,7 @@ var cmdMemory = Command{
 func listMemoryExec(args []string) {
 	auxMem := make([]emulator.Memory, 0)
 
+	// Add all pointers in registers to aux memory
 	for _, r := range []emulator.RegisterValue{
 		vm.Registers.R0,
 		vm.Registers.R1,

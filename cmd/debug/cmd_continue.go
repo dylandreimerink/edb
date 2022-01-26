@@ -1,11 +1,11 @@
-package main
+package debug
 
 import "fmt"
 
 var cmdContinue = Command{
 	Name:    "continue",
 	Aliases: []string{"c"},
-	Summary: "Continue execution of the program until it exists or a breakpoint is hit",
+	Summary: "Continue execution of the program until it exits or a breakpoint is hit",
 	Exec:    continueExec,
 }
 

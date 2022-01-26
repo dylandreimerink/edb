@@ -1,4 +1,4 @@
-package main
+package debug
 
 import (
 	"bytes"
@@ -148,6 +148,8 @@ type Context struct {
 	MemPtr *emulator.MemoryPtr
 }
 
+// TODO move all of the Ctx structs to their own package as a library so others might use them to generate contexts
+// outside of this project.
 type Ctx struct {
 	Name string `json:"name"`
 	// The name of the data which will be the actual context to be passed
@@ -243,6 +245,25 @@ func (ctx *Ctx) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+func (ctx *Ctx) MarshalJSON() ([]byte, error) {
+	ctx.RawData = make(map[string]json.RawMessage)
+
+	for name, data := range ctx.Data {
+		jsonData, err := json.Marshal(data)
+		if err != nil {
+			return nil, fmt.Errorf("json.marshal '%s': %w", name, err)
+		}
+
+		ctx.RawData[name] = jsonData
+	}
+
+	// Use an alias to avoid infinite loop
+	type PseudoCtx Ctx
+	pctx := PseudoCtx(*ctx)
+
+	return json.Marshal(pctx)
+}
+
 type CtxData interface {
 	ToMemory(name string, ctx *Ctx) (emulator.Memory, error)
 }
@@ -298,6 +319,23 @@ func (cm *CtxMemory) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+func (cm *CtxMemory) MarshalJSON() ([]byte, error) {
+	type ctxMem struct {
+		Type      string `json:"type"`
+		Value     string `json:"value"`
+		ByteOrder string `json:"byteorder"`
+	}
+	m := ctxMem{
+		Type:      "memory",
+		Value:     base64.StdEncoding.EncodeToString(cm.Value),
+		ByteOrder: binary.LittleEndian.String(),
+	}
+	if cm.ByteOrder == binary.BigEndian {
+		m.ByteOrder = binary.BigEndian.String()
+	}
+	return json.Marshal(m)
+}
+
 type CtxPtr struct {
 	MemoryName string `json:"value"`
 	Offset     int    `json:"offset"`
@@ -344,6 +382,22 @@ func (cp *CtxPtr) ToMemory(name string, ctx *Ctx) (emulator.Memory, error) {
 	return valMem, nil
 }
 
+func (cp *CtxPtr) MarshalJSON() ([]byte, error) {
+	type ctxPtr struct {
+		Type       string `json:"type"`
+		MemoryName string `json:"value"`
+		Offset     int    `json:"offset"`
+		Size       int    `json:"size"`
+	}
+	m := ctxPtr{
+		Type:       "ptr",
+		MemoryName: cp.MemoryName,
+		Offset:     cp.Offset,
+		Size:       cp.Size,
+	}
+	return json.Marshal(m)
+}
+
 type CtxInt struct {
 	Value int `json:"value"`
 	Size  int `json:"size"`
@@ -367,6 +421,20 @@ func (ci *CtxInt) ToMemory(name string, ctx *Ctx) (emulator.Memory, error) {
 	}
 
 	return valMem, nil
+}
+
+func (ci *CtxInt) MarshalJSON() ([]byte, error) {
+	type ctxInt struct {
+		Type  string `json:"type"`
+		Value int    `json:"value"`
+		Size  int    `json:"size"`
+	}
+	m := ctxInt{
+		Type:  "int",
+		Value: ci.Value,
+		Size:  ci.Size,
+	}
+	return json.Marshal(m)
 }
 
 type CtxStruct struct {
@@ -429,6 +497,18 @@ func (cs *CtxStruct) ToMemory(name string, ctx *Ctx) (emulator.Memory, error) {
 	}
 
 	return valMem, nil
+}
+
+func (cs *CtxStruct) MarshalJSON() ([]byte, error) {
+	type ctxStruct struct {
+		Type       string   `json:"type"`
+		FieldNames []string `json:"fields"`
+	}
+	m := ctxStruct{
+		Type:       "struct",
+		FieldNames: cs.FieldNames,
+	}
+	return json.Marshal(m)
 }
 
 func sizeToBytes(size int) (int, error) {
