@@ -8,7 +8,7 @@ var cmdContinueAll = Command{
 	Summary: "Continue execution of the program for all contexts",
 	Description: "This command will continue execution of the program, if the program exits, the VM will be reset " +
 		"and the next context loaded, just like a real program would. Execution halts when no more contexts are " +
-		"available, the user presses ctrl-c or a breakpoint is hit",
+		"available or a breakpoint is hit",
 	Exec: continueAllExec,
 }
 
