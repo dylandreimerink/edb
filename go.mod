@@ -2,9 +2,7 @@ module github.com/dylandreimerink/edb
 
 go 1.16
 
-replace github.com/dylandreimerink/gobpfld => ../gobpfld
-
-replace github.com/google/gopacket => ../gopacket
+replace github.com/google/gopacket => github.com/dylandreimerink/gopacket v1.1.20-0.20220126223506-0d3623bffc1f
 
 require (
 	github.com/c-bata/go-prompt v0.2.6
