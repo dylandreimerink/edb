@@ -4,13 +4,26 @@
 
 `edb` uses userspace eBPF emulation to run eBPF programs instead of loading them into the kernel, this allows us to debug them like any other program. Altho this method is not perfect due to possible differences between the emulator and actual Linux machines, it is better than nothing.
 
+>**WARNING/NOTE** This project is still a work in progress, so is the emulator on which it runs. Not all eBPF programs might run inside the debugger or some features might be missing. Please take a look at the [TODO](#TODO) of this projects and the [TODO](https://github.com/dylandreimerink/gobpfld/blob/master/emulator/todo.md) of the emulator for a list of missing features.
+
 ## Installation
 
-**Installation via go** `go install github.com/dylandreimerink/edb@latest`
+There are a few installation options
+### Clone and install
+```bash
+git clone https://github.com/dylandreimerink/edb.git
+cd edb
+go install .
+```
+
+### Install directly via go toolchain
+
+**Note** This methods currently doesn't work due to the presence of a redirect directive in `go.mod` for gopacket.
+
+`go install github.com/dylandreimerink/edb@latest`
 
 ## Usage
 
-Starting a debug session:
 ```
 EDB is a debugger for eBPF programs
 
@@ -29,9 +42,11 @@ Flags:
 Use "edb [command] --help" for more information about a command.
 ```
 
-### Debugger commands
+### `edb debug` interactive debugger
 
+Use the `help` command to get a list of all top level commands. You can get more details about a command by passing its name like `help help` or `help program`
 ```
+(edb) help
 Commands:
   help (Alias: h) ------------------------- Show help text / available commands
   exit (Aliases: q, quit) ----------------- Exits the debugger
@@ -53,7 +68,67 @@ Commands:
   continue-all (Alias: ca) ---------------- Continue execution of the program for all contexts
 ```
 
-## Desired features
+```
+(edb) help context
+context {sub-command} - Context related commands
+
+Sub commands:
+  list (Alias: ls) ------------------------ List loaded contexts
+  load (Alias: ld) ------------------------ Load a context JSON file
+  set ------------------------------------- Sets the current context
+```
+
+```
+(edb) help program
+program {sub-command} - Program related commands
+
+Sub commands:
+  list (Alias: ls) ------------------------ List all loaded programs
+  set ------------------------------------- Sets the entrypoint program
+```
+
+```
+map {sub-command} - Map related operations
+
+Sub commands:
+  list (Alias: ls) ------------------------ Lists all loaded maps
+  read-all -------------------------------- Reads and displays all keys and values
+```
+
+## `edb pcap-to-ctx`
+```
+Convert a PCAP(packet capture) file into a context file which can be passed to a XDP eBPF program
+
+Usage:
+  edb pcap-to-ctx {.pcap input} {.json ctx output} [flags]
+
+Flags:
+  -h, --help   help for pcap-to-ctx
+```
+
+Usage example:
+```bash
+tcpdump -i eth0 -w example.pcap
+edb pcap-to-ctx example.pcap example.ctx.json
+edb debug
+Type 'help' for list of commands.
+(edb) ctx load example.ctx.json
+43 contexts were loaded
+(edb) ctx list
+ =>  0 2022-01-25 20:11:16.471543 +0000 UTC (xdp_md + 0)
+     1 2022-01-25 20:11:16.715942 +0000 UTC (xdp_md + 0)
+     2 2022-01-25 20:11:16.717875 +0000 UTC (xdp_md + 0)
+     3 2022-01-25 20:11:16.87141 +0000 UTC (xdp_md + 0)
+    ...
+    41 2022-01-25 20:11:19.120006 +0000 UTC (xdp_md + 0)
+    42 2022-01-25 20:11:19.120006 +0000 UTC (xdp_md + 0)
+```
+
+## TODO
+
+A list of features which would be great to have. This debugger relies on a eBPF emulator which lives in a seperate repository and also has its own [TODO](https://github.com/dylandreimerink/gobpfld/blob/master/emulator/todo.md) list which directly impacts the abilities of `edb`. 
+
+Any contributions are welcome. 
 
 - Memory modification - we can currently view memory, but there is no way to modify it, would be nice if we could change memory contents.
 - Local variable inspection - we already can list local variables, but we have to somehow figure out in which register/memory location its value lives and how to print it based on its type.
