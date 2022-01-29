@@ -64,7 +64,7 @@ Commands:
   - `breakpoint set-log {line-ref} {condition (r1=0x1234)} {message}` set conditional logging breakpoint
 - `reset-maps` command - resets the contents of the maps
 - Load ctx files with cli flag
-- `map read` command to read all values of the map
+- `map read {key}` command to read a specific map value
 - `map write {key} {value}` command to write a value to a map
 - `map delete {key}` command to delete a value from a map
 - `source` command to execute a series for commands from a file, to automate complex debugging setups.
