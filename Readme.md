@@ -88,6 +88,7 @@ Sub commands:
 ```
 
 ```
+(edb) help map
 map {sub-command} - Map related operations
 
 Sub commands:
@@ -95,7 +96,7 @@ Sub commands:
   read-all -------------------------------- Reads and displays all keys and values
 ```
 
-## `edb pcap-to-ctx`
+### `edb pcap-to-ctx`
 ```
 Convert a PCAP(packet capture) file into a context file which can be passed to a XDP eBPF program
 
