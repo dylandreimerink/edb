@@ -66,6 +66,7 @@ Commands:
   breakpoint (Aliases: b, br, bp, break) -- Commands related to breakpoints
   continue (Alias: c) --------------------- Continue execution of the program until it exits or a breakpoint is hit
   continue-all (Alias: ca) ---------------- Continue execution of the program for all contexts
+  macro (Alias: mc) ----------------------- Macros allow you to execute a series of commands
 ```
 
 ```
@@ -94,6 +95,24 @@ map {sub-command} - Map related operations
 Sub commands:
   list (Alias: ls) ------------------------ Lists all loaded maps
   read-all -------------------------------- Reads and displays all keys and values
+```
+
+```
+(edb) help macro
+macro {sub-command} - Macros allow you to execute a series of commands
+You might encounter a situation in which you would like to combine multiple commands so you can repeately execute them by pressing <enter>. Macros can also be useful if you find that you have to do a lot of setup work for a specific program(loading the ELF, changing entrypoint, setting map values). In such cases being able to execute a macro from a file can save a lot of time.
+Sub commands:
+  list (Alias: ls) ------------------------ List all loaded macros
+  show ------------------------------------ Shows the commands in a macro
+  start ----------------------------------- Start recording a macro
+  stop ------------------------------------ Stop recording a macro
+  save ------------------------------------ Save a macro to a file
+  load ------------------------------------ Load macro(s) from a file
+  un-load --------------------------------- Unloads a macro, permanently deleting it if not saved
+  exec ------------------------------------ Execute a macro
+  run ------------------------------------- Parses a macro file and runs all macros within
+  set ------------------------------------- Sets a line within a macro
+  del ------------------------------------- Deletes a line from a macro
 ```
 
 ### `edb pcap-to-ctx`
@@ -143,7 +162,6 @@ Any contributions are welcome.
 - `map read {key}` command to read a specific map value
 - `map write {key} {value}` command to write a value to a map
 - `map delete {key}` command to delete a value from a map
-- `source` command to execute a series for commands from a file, to automate complex debugging setups.
 - DAP(Debug Adaptor Protocol) support for debugging from VSCode
 - C Syntax highlighting (what about when sources are not C? Maybe IDE/Editor integration is a better way to go)
 - Actual map backing - We could optionally use actual BPF maps instead of emulated maps. Enabling this option would only be possible on linux since other OS'es won't have actual eBPF support. The big pro is that, in an environment with multiple eBPF programs, you could run 1 in debug mode and still be able to communicate with the eBPF programs loaded in the kernel. Another pro could be (if possible) that an actual userspace program can interact with the eBPF program like it would when loaded in the kernel. 

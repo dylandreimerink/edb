@@ -80,6 +80,7 @@ func init() {
 		cmdBreakpoint,
 		cmdContinue,
 		cmdContinueAll,
+		cmdMacro,
 		// TODO add `files` command to list all source files of all or a specific program
 	}
 }
@@ -127,9 +128,17 @@ func getBTFLine() *gobpfld.BTFLine {
 
 var lastArgs []string
 
+// TODO add a context mechanism, there are situations which can result in infinite loops which currently block
+// user input. The only way to stop the program is externally. All commands should accept a context.Context and check
+// it periodically and handle cancels, for example from a ctrl-c which is currently ignored until a command is done.
+// This could also be combined with a timeout, commands are not exected to run for more than a few seconds. Which
+// is a backup in case the user doesn't know about ctrl-c.
+// (how would we handle explicitly long running commands? continue-all for example? runtime/file based config?)
+
 func executor(in string) {
 	in = strings.TrimSpace(in)
 
+	// Split by space, but keep spaces within quotes("")
 	quoted := false
 	args := strings.FieldsFunc(in, func(r rune) bool {
 		if r == '"' {
@@ -141,12 +150,23 @@ func executor(in string) {
 		args[i] = strings.Trim(arg, "\"")
 	}
 
+	// If the input string starts with a comment, don't actually execute
+	if strings.HasPrefix(in, "#") || strings.HasPrefix(in, "//") {
+		// But if we are recording a macro, add it to the list of commands
+		if macroState.rec {
+			macroState.recCommands = append(macroState.recCommands, in)
+		}
+		return
+	}
+
+	// Show help if no args were given and non have been executed before
 	if len(args) == 0 {
 		if len(lastArgs) == 0 {
 			helpCmd.Exec(nil)
 			return
 		}
 
+		// Repeat the last command, this is really helpful if you have to execute it a bunch of times
 		args = lastArgs
 	}
 
@@ -185,6 +205,19 @@ func executor(in string) {
 		// If there are no more arguments or no more sub commands, execute the current command and exit
 
 		cmd.Exec(modArgs)
+
+		// TODO return an indication from Exec to save as macro or not. So commands which are invalid are not recorded.
+
+		// If macro recording is enabled, record the full command.
+		if macroState.rec {
+			// FIXME this is a temporary hack, as soon as commands can tell us to ignore a command for recording
+			// we should use that instread and make `macro start` ignore its own addition to the macro
+			if !(len(args) >= 2 && args[0] == "macro" && args[1] == "start") {
+				// Don't record the `macro start` command in the actual macro
+				macroState.recCommands = append(macroState.recCommands, in)
+			}
+		}
+
 		return
 	}
 }
