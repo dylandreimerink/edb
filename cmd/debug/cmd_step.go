@@ -15,7 +15,7 @@ func stepExec(args []string) {
 		return
 	}
 
-	startLine := getBTFLine()
+	startLine := getCurBTFLine()
 	for {
 		stop, err := vm.Step()
 		if err != nil {
@@ -28,7 +28,7 @@ func stepExec(args []string) {
 			return
 		}
 
-		curLine := getBTFLine()
+		curLine := getCurBTFLine()
 		if curLine == nil || startLine == nil || curLine.LineNumber != startLine.LineNumber {
 			break
 		}

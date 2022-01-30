@@ -3,6 +3,9 @@ package debug
 import (
 	"fmt"
 	"strconv"
+	"strings"
+
+	"github.com/dylandreimerink/gobpfld"
 )
 
 var cmdListInstructions = Command{
@@ -53,9 +56,18 @@ func listInstructionExec(args []string) {
 		return
 	}
 
-	// TODO BTF line annotation
+	var lastLine *gobpfld.BTFLine
+
 	indexPadSize := len(strconv.Itoa(end))
 	for i := start; i < end; i++ {
+		curLine := getBTFLine(vm.Registers.PI, i)
+		if curLine != lastLine && curLine != nil {
+			line := strings.TrimSpace(curLine.Line)
+			fmt.Print("   ", strings.Repeat(" ", indexPadSize), "; ")
+			fmt.Println(green(line))
+		}
+		lastLine = curLine
+
 		if i == vm.Registers.PC {
 			fmt.Print(yellow(" => "))
 		} else {

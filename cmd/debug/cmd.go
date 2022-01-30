@@ -95,13 +95,17 @@ func printRed(format string, args ...interface{}) {
 	fmt.Print(red(fmt.Sprintf(format, args...)))
 }
 
-func getBTFLine() *gobpfld.BTFLine {
-	btf := programs[vm.Registers.PI].GetAbstractProgram().BTF
+func getCurBTFLine() *gobpfld.BTFLine {
+	return getBTFLine(vm.Registers.PI, vm.Registers.PC)
+}
+
+func getBTFLine(programID, instruction int) *gobpfld.BTFLine {
+	btf := programs[programID].GetAbstractProgram().BTF
 	if btf == nil || len(btf.Lines) == 0 {
 		return nil
 	}
 
-	rawOffset := vm.Registers.PC * ebpf.BPFInstSize
+	rawOffset := instruction * ebpf.BPFInstSize
 
 	var lastLine *gobpfld.BTFLine
 	for i, line := range btf.Lines {

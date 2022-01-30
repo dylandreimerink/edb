@@ -145,7 +145,7 @@ func setBreakpointExec(args []string) {
 		}
 
 	case *locspec.LineLocationSpec:
-		line := getBTFLine()
+		line := getCurBTFLine()
 		if line == nil {
 			printRed("Unable to find current file")
 			return
@@ -275,7 +275,7 @@ func (fl *FileLineBreakpoint) ShouldBreak(vm *emulator.VM) bool {
 		return false
 	}
 
-	line := getBTFLine()
+	line := getCurBTFLine()
 	if line == nil {
 		return false
 	}

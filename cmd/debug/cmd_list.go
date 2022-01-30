@@ -20,7 +20,7 @@ func listLinesExec(args []string) {
 		return
 	}
 
-	btfLine := getBTFLine()
+	btfLine := getCurBTFLine()
 
 	if btfLine == nil {
 		fmt.Println(yellow("Program has no BTF, can't list lines, showing instruction instread"))

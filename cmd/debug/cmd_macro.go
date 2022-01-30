@@ -67,7 +67,7 @@ var cmdMacro = Command{
 				},
 			},
 			CustomCompletion: func(args []string) []prompt.Suggest {
-				if len(args) == 1 {
+				if len(args) <= 1 {
 					return macroCompletion(args)
 				}
 				return fileCompletion(args[1:])
