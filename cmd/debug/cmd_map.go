@@ -3,7 +3,9 @@ package debug
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
+	"github.com/dylandreimerink/gobpfld"
 	"github.com/dylandreimerink/gobpfld/emulator"
 )
 
@@ -58,9 +60,9 @@ func mapReadAllExec(args []string) {
 		id = -1
 		for i, m := range vm.Maps {
 			if m.GetName() == nameOrID {
+				id = i
 				break
 			}
-			id = i
 		}
 		if id == -1 {
 			printRed("No map with name '%s' exists, use 'maps list' to see valid options\n", nameOrID)
@@ -73,6 +75,7 @@ func mapReadAllExec(args []string) {
 	}
 
 	m := vm.Maps[id]
+	mt := m.GetType()
 	ks := int(m.GetDef().KeySize)
 	vs := int(m.GetDef().ValueSize)
 	for _, k := range m.Keys() {
@@ -103,11 +106,34 @@ func mapReadAllExec(args []string) {
 			return
 		}
 
-		// TODO turn key and value bytes into printable structures using BTF Type info
+		kStr := fmt.Sprintf("%0*X", vs, kVal)
+		vStr := fmt.Sprintf("%0*X", ks, vVal)
+
+		if bfmt, ok := mt.Key.(gobpfld.BTFValueFormater); ok {
+			var kw strings.Builder
+			_, err = bfmt.FormatValue(kVal, &kw, false)
+			if err != nil {
+				// TODO just fall back to showing bytes if we have formatting errors.
+				printRed("Error while formatting key: %s\n", err)
+				return
+			}
+			kStr = kw.String()
+		}
+
+		if bfmt, ok := mt.Value.(gobpfld.BTFValueFormater); ok {
+			var vw strings.Builder
+			_, err = bfmt.FormatValue(vVal, &vw, false)
+			if err != nil {
+				// TODO just fall back to showing bytes if we have formatting errors.
+				printRed("Error while formatting value: %s\n", err)
+				return
+			}
+			vStr = vw.String()
+		}
 
 		fmt.Printf("%s = %s\n",
-			blue(fmt.Sprintf("%0*X", ks, kVal)),
-			yellow(fmt.Sprintf("%0*X", vs, vVal)),
+			blue(kStr),
+			yellow(vStr),
 		)
 	}
 }

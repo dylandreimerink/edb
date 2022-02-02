@@ -15,7 +15,7 @@ var rootCmd = &cobra.Command{
 
 func Execute() {
 	rootCmd.AddCommand(
-		debug.DebugCmd,
+		debug.DebugCmd(),
 		pcapToCtxCommand,
 	)
 
