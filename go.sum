@@ -113,6 +113,8 @@ github.com/dgrijalva/jwt-go v3.2.0+incompatible/go.mod h1:E3ru+11k8xSBh+hMPgOLZm
 github.com/dgryski/go-sip13 v0.0.0-20181026042036-e10d5fee7954/go.mod h1:vAd38F8PWV+bWy6jNmig1y/TA+kYO4g3RSRF0IAv0no=
 github.com/dylandreimerink/gobpfld v0.6.1-0.20220202210451-0b5cac865678 h1:0MpwNerHLkXEM57FuNDzVjti7hUH3diD+UFi/XXC1Y0=
 github.com/dylandreimerink/gobpfld v0.6.1-0.20220202210451-0b5cac865678/go.mod h1:egxm+Tcg9E7LPjdMgspGGW2Oc2TQV2EDCr4b6H0pGPI=
+github.com/dylandreimerink/gobpfld v0.6.1-0.20220203190712-be4dd3cdf18b h1:9L4OrJg3PSijtIsAX1po/5HPLtfDhA2VLax9nE0KPmc=
+github.com/dylandreimerink/gobpfld v0.6.1-0.20220203190712-be4dd3cdf18b/go.mod h1:egxm+Tcg9E7LPjdMgspGGW2Oc2TQV2EDCr4b6H0pGPI=
 github.com/dylandreimerink/gocovmerge v1.0.0/go.mod h1:Ks2zDoZB1/SD5QSn9v3ckYbVMn5JD7vY7UuOQVyI3Bc=
 github.com/dylandreimerink/gopacket v1.1.20-0.20220126223506-0d3623bffc1f h1:bFrU1hXZFhi71fcUwZ6uh1mjh1YmBYFF7NfYdvXFnI8=
 github.com/dylandreimerink/gopacket v1.1.20-0.20220126223506-0d3623bffc1f/go.mod h1:riddUzxTSBpJXk3qBHtYr4qOhFhT6k/1c0E3qkQjQpA=
