@@ -1,11 +1,14 @@
 package debug
 
 import (
+	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/dylandreimerink/gobpfld"
+	"github.com/dylandreimerink/gobpfld/bpfsys"
 	"github.com/dylandreimerink/gobpfld/emulator"
 )
 
@@ -29,6 +32,25 @@ var cmdMap = Command{
 				Name:     "map name|map index",
 				Required: true,
 			}},
+		},
+		{
+			Name:    "write",
+			Summary: "Write a value to a map",
+			Exec:    mapWriteExec,
+			Args: []CmdArg{
+				{
+					Name:     "map name|map index",
+					Required: true,
+				},
+				{
+					Name:     "key",
+					Required: true,
+				},
+				{
+					Name:     "value",
+					Required: true,
+				},
+			},
 		},
 	},
 }
@@ -136,4 +158,115 @@ func mapReadAllExec(args []string) {
 			yellow(vStr),
 		)
 	}
+}
+
+func mapWriteExec(args []string) {
+	if len(args) < 1 {
+		printRed("Missing required argument 'map name|map index'\n")
+		return
+	}
+
+	if len(args) < 2 {
+		printRed("Missing required argument 'key'\n")
+		return
+	}
+
+	if len(args) < 3 {
+		printRed("Missing required argument 'value'\n")
+		return
+	}
+
+	nameOrID := args[0]
+	id, err := strconv.Atoi(nameOrID)
+	if err != nil {
+		id = -1
+		for i, m := range vm.Maps {
+			if m.GetName() == nameOrID {
+				id = i
+				break
+			}
+		}
+		if id == -1 {
+			printRed("No map with name '%s' exists, use 'maps list' to see valid options\n", nameOrID)
+			return
+		}
+	}
+	if id < 0 || len(vm.Maps) <= id {
+		printRed("No map with id '%d' exists, use 'maps list' to see valid options\n", id)
+		return
+	}
+
+	m := vm.Maps[id]
+	keySize := m.GetDef().KeySize
+	valueSize := m.GetDef().ValueSize
+
+	kv, err := valueFromString(args[1], int(keySize))
+	if err != nil {
+		printRed("Error parsing key: %s\n", err)
+		return
+	}
+
+	vv, err := valueFromString(args[2], int(valueSize))
+	if err != nil {
+		printRed("Error parsing key: %s\n", err)
+		return
+	}
+
+	_, err = m.Update(kv, vv, bpfsys.BPFMapElemAny)
+	if err != nil {
+		printRed("Error updating map: %s\n", err)
+		return
+	}
+
+	fmt.Println("Map value written")
+}
+
+func valueFromString(str string, size int) (emulator.RegisterValue, error) {
+	if strings.HasPrefix(str, "0x") {
+		b, err := hex.DecodeString(strings.TrimPrefix(str, "0x"))
+		if err != nil {
+			return nil, fmt.Errorf("hex decode: %w", err)
+		}
+
+		// Zero pad to the correct size
+		rb := make([]byte, size)
+		copy(rb[size-len(b):], b)
+
+		return &emulator.MemoryPtr{
+			Memory: &emulator.ByteMemory{
+				MemName: "key",
+				Backing: rb,
+			},
+			Offset: 0,
+		}, nil
+	}
+
+	num, err := strconv.Atoi(str)
+	if err != nil {
+		return nil, fmt.Errorf("atoi: %w", err)
+	}
+
+	b := make([]byte, size)
+	switch size {
+	case 1:
+		b[0] = byte(num)
+
+	case 2:
+		binary.LittleEndian.PutUint16(b, uint16(num))
+
+	case 4:
+		binary.LittleEndian.PutUint32(b, uint32(num))
+
+	case 8:
+		binary.LittleEndian.PutUint64(b, uint64(num))
+
+	default:
+		return nil, fmt.Errorf("can't convert int to %d bytes", size)
+	}
+
+	return &emulator.MemoryPtr{
+		Memory: &emulator.ByteMemory{
+			Backing: b,
+		},
+	}, nil
 }
