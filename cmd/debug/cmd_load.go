@@ -142,7 +142,12 @@ func loadExec(args []string) {
 
 	// If we are not in the middle of program execution, reset the VM.
 	// We do this to set the context of the program(R1)
-	if vm.Registers.PC == 0 && vm.Registers.PI == entrypoint {
+	if vm.Registers.PC == 0 && (vm.Registers.PI == 0 || vm.Registers.PI == entrypoint) {
 		cmdReset.Exec(nil)
+
+		err = vm.SetEntrypoint(entrypoint)
+		if err != nil {
+			printRed(fmt.Sprintf("Error setting entrypoint: %s\n", err))
+		}
 	}
 }

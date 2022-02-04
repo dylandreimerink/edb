@@ -38,6 +38,11 @@ var cmdProgram = Command{
 func listProgramsExec(args []string) {
 	indexPadSize := len(strconv.Itoa(len(progName)))
 	for i, name := range progName {
+		// Skip zero since it is an invalid program index
+		if i == 0 {
+			continue
+		}
+
 		if i == vm.Registers.PI {
 			fmt.Print(yellow(" => "))
 		} else if i == entrypoint {
@@ -63,7 +68,10 @@ func setProgramEntrypointExec(args []string) {
 
 		if vm.Registers.PC == 0 {
 			fmt.Printf("Program counter at 0, changed current program\n")
-			vm.Registers.PI = entrypoint
+			err := vm.SetEntrypoint(entrypoint)
+			if err != nil {
+				printRed(fmt.Sprintf("Error setting entrypoint: %s\n", err))
+			}
 		} else {
 			fmt.Printf("Program mid execution, current program unchanged, execute 'reset' to go to entrypoint\n")
 		}
@@ -71,7 +79,7 @@ func setProgramEntrypointExec(args []string) {
 
 	nameOrID := args[0]
 	if id, err := strconv.Atoi(nameOrID); err == nil {
-		if len(programs) <= id {
+		if id < 1 || len(programs) <= id {
 			printRed("No program with id '%d' exists, use 'programs list' to see valid options\n", id)
 			return
 		}

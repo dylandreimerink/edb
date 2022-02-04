@@ -159,7 +159,6 @@ Any contributions are welcome.
   - `breakpoint set-log {line-ref} {condition (r1=0x1234)} {message}` set conditional logging breakpoint
 - `reset-maps` command - resets the contents of the maps
 - `map read {key}` command to read a specific map value
-- `map write {key} {value}` command to write a value to a map
 - `map delete {key}` command to delete a value from a map
 - `map export` command to export the contents of a map to a file or to a pined map with the same definition. The idea being that you could run your program and then export the output so it can be interpreted by a userspace application.
 - Optional kernel verification - It would be nice to attempt to load the program into the kernel to get the verifiers opinion of the program. The debugger might then interpret the verifier log and more clearly show or explain why the program was rejected.

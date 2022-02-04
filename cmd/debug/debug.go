@@ -15,10 +15,14 @@ var (
 	curCtx   int
 	contexts []Context
 
-	entrypoint  int
-	programs    []gobpfld.BPFProgram
-	progName    []string
-	progDwarf   []*DET
+	// Make program 1 the default entrypoint
+	entrypoint int = 1
+	// Programs start from 1, this is to catch errors where a program or map index is zero due to a bug
+	// Making 0 an invalid number so programs crash is preferred over silently wrong behavior
+	programs  = []gobpfld.BPFProgram{nil}
+	progName  = []string{""}
+	progDwarf = []*DET{nil}
+
 	breakpoints []Breakpoint
 )
 

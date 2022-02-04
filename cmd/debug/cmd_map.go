@@ -58,6 +58,11 @@ var cmdMap = Command{
 func listMapsExec(args []string) {
 	indexPadSize := len(strconv.Itoa(len(vm.Maps)))
 	for i, m := range vm.Maps {
+		// Skip zero since it is an invalid program index
+		if i == 0 {
+			continue
+		}
+
 		fmt.Print(blue(fmt.Sprintf("%*d ", indexPadSize, i)))
 		fmt.Printf("%s:\n", m.GetName())
 		// TODO print Key and Value types from BTF
@@ -81,7 +86,7 @@ func mapReadAllExec(args []string) {
 	if err != nil {
 		id = -1
 		for i, m := range vm.Maps {
-			if m.GetName() == nameOrID {
+			if m != nil && m.GetName() == nameOrID {
 				id = i
 				break
 			}
@@ -91,7 +96,7 @@ func mapReadAllExec(args []string) {
 			return
 		}
 	}
-	if id < 0 || len(vm.Maps) <= id {
+	if id < 1 || len(vm.Maps) <= id {
 		printRed("No map with id '%d' exists, use 'maps list' to see valid options\n", id)
 		return
 	}
@@ -191,7 +196,7 @@ func mapWriteExec(args []string) {
 			return
 		}
 	}
-	if id < 0 || len(vm.Maps) <= id {
+	if id < 1 || len(vm.Maps) <= id {
 		printRed("No map with id '%d' exists, use 'maps list' to see valid options\n", id)
 		return
 	}
