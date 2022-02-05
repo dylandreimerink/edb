@@ -34,9 +34,24 @@ var cmdMap = Command{
 			}},
 		},
 		{
-			Name:    "write",
-			Summary: "Write a value to a map",
-			Exec:    mapWriteExec,
+			Name:    "get",
+			Summary: "Get the value of a particular key in a map",
+			Exec:    mapGetExec,
+			Args: []CmdArg{
+				{
+					Name:     "map name|map index",
+					Required: true,
+				},
+				{
+					Name:     "key",
+					Required: true,
+				},
+			},
+		},
+		{
+			Name:    "set",
+			Summary: "Set a value at a particular spot in a map",
+			Exec:    mapSetExec,
 			Args: []CmdArg{
 				{
 					Name:     "map name|map index",
@@ -52,6 +67,25 @@ var cmdMap = Command{
 				},
 			},
 		},
+		{
+			Name:    "del",
+			Summary: "Delete a value from a map with the given key",
+			Exec:    mapDelExec,
+			Args: []CmdArg{
+				{
+					Name:     "map name|map index",
+					Required: true,
+				},
+				{
+					Name:     "key",
+					Required: true,
+				},
+			},
+		},
+		// TODO add `push/enqueue` to push/enqueue a value, no key can be specified, for things like perf_event_array,
+		// 		ring buffer, stack and queue.
+		// TODO add `pop/dequeue` to pop/dequeue a value, no key can be specified, for things like perf_event_array,
+		// 		ring buffer, stack and queue. This will read and delete the value
 	},
 }
 
@@ -75,6 +109,72 @@ func listMapsExec(args []string) {
 	}
 }
 
+func mapGetExec(args []string) {
+	if len(args) < 1 {
+		printRed("Missing required argument 'map name|map index'\n")
+		return
+	}
+
+	if len(args) < 2 {
+		printRed("Missing required argument 'key'\n")
+		return
+	}
+
+	nameOrID := args[0]
+	m, err := nameOrIDToMap(nameOrID)
+	if err != nil {
+		printRed("%s\n", err)
+		return
+	}
+
+	mt := m.GetType()
+	ks := int(m.GetDef().KeySize)
+	vs := int(m.GetDef().ValueSize)
+
+	kv, err := valueFromString(args[1], ks)
+	if err != nil {
+		printRed("Error parsing key: %s\n", err)
+		return
+	}
+
+	value, err := m.Lookup(kv)
+	if err != nil {
+		printRed("Error lookup map: %s\n", err)
+		return
+	}
+
+	vPtr, ok := value.(emulator.PointerValue)
+	if !ok {
+		if _, ok := value.(*emulator.IMMValue); ok && value.Value() == 0 {
+			printRed("Map doesn't contain a value for the given key\n")
+			return
+		}
+
+		printRed("Error map value of type '%T' is not a emulator.PointerValue\n", value)
+		return
+	}
+	vVal, err := vPtr.ReadRange(0, vs)
+	if err != nil {
+		printRed("Error read range key: %s\n", err)
+		return
+	}
+
+	vStr := fmt.Sprintf("%0*X", vs, vVal)
+
+	if bfmt, ok := mt.Value.(gobpfld.BTFValueFormater); ok {
+		var vw strings.Builder
+		_, err = bfmt.FormatValue(vVal, &vw, true)
+		if err != nil {
+			// TODO just fall back to showing bytes if we have formatting errors.
+			printRed("Error while formatting value: %s\n", err)
+			return
+		}
+		vStr = vw.String()
+	}
+
+	fmt.Printf("%s\n", yellow(vStr))
+}
+
 func mapReadAllExec(args []string) {
 	if len(args) < 1 {
 		printRed("Missing required argument 'map name|map index'\n")
@@ -82,26 +182,12 @@ func mapReadAllExec(args []string) {
 	}
 
 	nameOrID := args[0]
-	id, err := strconv.Atoi(nameOrID)
+	m, err := nameOrIDToMap(nameOrID)
 	if err != nil {
-		id = -1
-		for i, m := range vm.Maps {
-			if m != nil && m.GetName() == nameOrID {
-				id = i
-				break
-			}
-		}
-		if id == -1 {
-			printRed("No map with name '%s' exists, use 'maps list' to see valid options\n", nameOrID)
-			return
-		}
-	}
-	if id < 1 || len(vm.Maps) <= id {
-		printRed("No map with id '%d' exists, use 'maps list' to see valid options\n", id)
+		printRed("%s\n", err)
 		return
 	}
 
-	m := vm.Maps[id]
 	mt := m.GetType()
 	ks := int(m.GetDef().KeySize)
 	vs := int(m.GetDef().ValueSize)
@@ -165,7 +251,7 @@ func mapReadAllExec(args []string) {
 	}
 }
 
-func mapWriteExec(args []string) {
+func mapSetExec(args []string) {
 	if len(args) < 1 {
 		printRed("Missing required argument 'map name|map index'\n")
 		return
@@ -182,26 +268,12 @@ func mapWriteExec(args []string) {
 	}
 
 	nameOrID := args[0]
-	id, err := strconv.Atoi(nameOrID)
+	m, err := nameOrIDToMap(nameOrID)
 	if err != nil {
-		id = -1
-		for i, m := range vm.Maps {
-			if m.GetName() == nameOrID {
-				id = i
-				break
-			}
-		}
-		if id == -1 {
-			printRed("No map with name '%s' exists, use 'maps list' to see valid options\n", nameOrID)
-			return
-		}
-	}
-	if id < 1 || len(vm.Maps) <= id {
-		printRed("No map with id '%d' exists, use 'maps list' to see valid options\n", id)
+		printRed("%s\n", err)
 		return
 	}
 
-	m := vm.Maps[id]
 	keySize := m.GetDef().KeySize
 	valueSize := m.GetDef().ValueSize
 
@@ -226,11 +298,71 @@ func mapWriteExec(args []string) {
 	fmt.Println("Map value written")
 }
 
+func mapDelExec(args []string) {
+	if len(args) < 1 {
+		printRed("Missing required argument 'map name|map index'\n")
+		return
+	}
+
+	if len(args) < 2 {
+		printRed("Missing required argument 'key'\n")
+		return
+	}
+
+	nameOrID := args[0]
+	m, err := nameOrIDToMap(nameOrID)
+	if err != nil {
+		printRed("%s\n", err)
+		return
+	}
+
+	keySize := m.GetDef().KeySize
+
+	kv, err := valueFromString(args[1], int(keySize))
+	if err != nil {
+		printRed("Error parsing key: %s\n", err)
+		return
+	}
+
+	err = m.Delete(kv, bpfsys.BPFMapElemAny)
+	if err != nil {
+		printRed("Error deleting value from map: %s\n", err)
+		return
+	}
+
+	fmt.Println("Map value deleted")
+}
+
+func nameOrIDToMap(nameOrID string) (emulator.Map, error) {
+	id, err := strconv.Atoi(nameOrID)
+	if err != nil {
+		id = -1
+		for i, m := range vm.Maps {
+			if m.GetName() == nameOrID {
+				id = i
+				break
+			}
+		}
+		if id == -1 {
+			return nil, fmt.Errorf("No map with name '%s' exists, use 'maps list' to see valid options", nameOrID)
+		}
+	}
+	if id < 1 || len(vm.Maps) <= id {
+		return nil, fmt.Errorf("No map with id '%d' exists, use 'maps list' to see valid options", id)
+	}
+
+	return vm.Maps[id], nil
+}
+
 func valueFromString(str string, size int) (emulator.RegisterValue, error) {
 	if strings.HasPrefix(str, "0x") {
 		b, err := hex.DecodeString(strings.TrimPrefix(str, "0x"))
 		if err != nil {
 			return nil, fmt.Errorf("hex decode: %w", err)
+		}
+
+		if len(b) > size {
+			return nil, fmt.Errorf("hex to long, got '%d' bytes, expected '%d'", len(b), size)
 		}
 
 		// Zero pad to the correct size
