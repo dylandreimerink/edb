@@ -23,6 +23,8 @@ var (
 	progName  = []string{""}
 	progDwarf = []*DET{nil}
 
+	mapName = []string{""}
+
 	breakpoints []Breakpoint
 )
 

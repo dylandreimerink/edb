@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 
 	"github.com/dylandreimerink/edb/elf"
 	"github.com/dylandreimerink/gobpfld"
@@ -61,14 +62,23 @@ func loadExec(args []string) {
 		return
 	}
 
+	// Make a sorted list of map names so they always are inserted in the same order between debugging sessions.
+	// This repeatability makes using numeric indexes in macros possible
+	elfMapNames := make([]string, 0, len(elf.Maps))
+	for name := range elf.Maps {
+		elfMapNames = append(elfMapNames, name)
+	}
+	sort.Strings(elfMapNames)
+
 	mapIds := make(map[string]int)
-	for name, m := range elf.Maps {
+	for _, name := range elfMapNames {
+		em := elf.Maps[name]
 		m, err := emulator.AbstractMapToVM(gobpfld.AbstractMap{
-			Name:        m.GetName(),
-			Definition:  m.GetDefinition(),
-			BTF:         m.GetBTF(),
-			BTFMapType:  m.GetBTFMapType(),
-			InitialData: m.GetInitialData(),
+			Name:        em.GetName(),
+			Definition:  em.GetDefinition(),
+			BTF:         em.GetBTF(),
+			BTFMapType:  em.GetBTFMapType(),
+			InitialData: em.GetInitialData(),
 		})
 		if err != nil {
 			printRed("error abstract map to vm: %s\n", err)
@@ -85,11 +95,21 @@ func loadExec(args []string) {
 			return
 		}
 		mapIds[name] = id
+		mapName = append(mapName, name)
 
 		fmt.Printf("loaded map '%s' at index %d\n", name, id)
 	}
 
-	for name, prog := range elf.Programs {
+	// Make a sorted list of program names so they always are inserted in the same order between debugging sessions.
+	// This repeatability makes using numeric indexes in macros possible
+	elfProgNames := make([]string, 0, len(elf.Programs))
+	for name := range elf.Programs {
+		elfProgNames = append(elfProgNames, name)
+	}
+	sort.Strings(elfProgNames)
+
+	for _, name := range elfProgNames {
+		prog := elf.Programs[name]
 		ap := prog.GetAbstractProgram()
 
 		for mapName, offsets := range ap.MapFDLocations {
