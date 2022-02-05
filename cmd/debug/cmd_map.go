@@ -82,10 +82,34 @@ var cmdMap = Command{
 				},
 			},
 		},
-		// TODO add `push/enqueue` to push/enqueue a value, no key can be specified, for things like perf_event_array,
-		// 		ring buffer, stack and queue.
-		// TODO add `pop/dequeue` to pop/dequeue a value, no key can be specified, for things like perf_event_array,
-		// 		ring buffer, stack and queue. This will read and delete the value
+		{
+			Name:    "push",
+			Aliases: []string{"enqueue"},
+			Summary: "Push/enqueue a value into the map",
+			Exec:    mapPushExec,
+			Args: []CmdArg{
+				{
+					Name:     "map name|map index",
+					Required: true,
+				},
+				{
+					Name:     "value",
+					Required: true,
+				},
+			},
+		},
+		{
+			Name:    "pop",
+			Aliases: []string{"dequeue"},
+			Summary: "Pop/dequeue a value from the map, this shows and deletes the value",
+			Exec:    mapPopExec,
+			Args: []CmdArg{
+				{
+					Name:     "map name|map index",
+					Required: true,
+				},
+			},
+		},
 	},
 }
 
@@ -331,6 +355,95 @@ func mapDelExec(args []string) {
 	}
 
 	fmt.Println("Map value deleted")
+}
+
+func mapPushExec(args []string) {
+	if len(args) < 1 {
+		printRed("Missing required argument 'map name|map index'\n")
+		return
+	}
+
+	if len(args) < 2 {
+		printRed("Missing required argument 'value'\n")
+		return
+	}
+
+	nameOrID := args[0]
+	m, err := nameOrIDToMap(nameOrID)
+	if err != nil {
+		printRed("%s\n", err)
+		return
+	}
+
+	valueSize := m.GetDef().ValueSize
+
+	vv, err := valueFromString(args[1], int(valueSize))
+	if err != nil {
+		printRed("Error parsing key: %s\n", err)
+		return
+	}
+
+	err = m.Push(vv, int64(m.GetDef().ValueSize))
+	if err != nil {
+		printRed("Error updating map: %s\n", err)
+		return
+	}
+
+	fmt.Println("Map value written")
+}
+
+func mapPopExec(args []string) {
+	if len(args) < 1 {
+		printRed("Missing required argument 'map name|map index'\n")
+		return
+	}
+
+	nameOrID := args[0]
+	m, err := nameOrIDToMap(nameOrID)
+	if err != nil {
+		printRed("%s\n", err)
+		return
+	}
+
+	mt := m.GetType()
+	vs := int(m.GetDef().ValueSize)
+
+	value, err := m.Pop()
+	if err != nil {
+		printRed("Error pop map: %s\n", err)
+		return
+	}
+
+	vPtr, ok := value.(emulator.PointerValue)
+	if !ok {
+		if _, ok := value.(*emulator.IMMValue); ok && value.Value() == 0 {
+			printRed("Map doesn't contain a value for the given key\n")
+			return
+		}
+
+		printRed("Error map value of type '%T' is not a emulator.PointerValue\n", value)
+		return
+	}
+	vVal, err := vPtr.ReadRange(0, vs)
+	if err != nil {
+		printRed("Error read range key: %s\n", err)
+		return
+	}
+
+	vStr := fmt.Sprintf("%0*X", vs, vVal)
+
+	if bfmt, ok := mt.Value.(gobpfld.BTFValueFormater); ok {
+		var vw strings.Builder
+		_, err = bfmt.FormatValue(vVal, &vw, true)
+		if err != nil {
+			// TODO just fall back to showing bytes if we have formatting errors.
+			printRed("Error while formatting value: %s\n", err)
+			return
+		}
+		vStr = vw.String()
+	}
+
+	fmt.Printf("%s\n", yellow(vStr))
 }
 
 func nameOrIDToMap(nameOrID string) (emulator.Map, error) {

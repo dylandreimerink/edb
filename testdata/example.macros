@@ -1,6 +1,5 @@
 # edb macro file, don't remove this comment
-silsr:
+sir:
  step-instruction
- list
  regs
 

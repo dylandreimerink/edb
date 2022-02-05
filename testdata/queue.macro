@@ -1,0 +1,19 @@
+# edb macro file, don't remove this comment
+prepare-queue:
+    load testdata/queue
+    map push num_queue 1
+    map push num_queue 2
+    map push num_queue 3
+    map read-all num_queue
+    # 1
+    map pop num_queue
+    # 2
+    map pop num_queue
+    # 3
+    map pop num_queue
+    map push num_queue 1
+    map push num_queue 2
+    map push num_queue 3
+    continue
+    # 6
+    map pop num_queue

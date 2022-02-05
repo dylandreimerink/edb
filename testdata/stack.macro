@@ -1,0 +1,19 @@
+# edb macro file, don't remove this comment
+prepare-stack:
+    load testdata/stack
+    map push num_stack 1
+    map push num_stack 2
+    map push num_stack 3
+    map read-all num_stack
+    # 3
+    map pop num_stack
+    # 2
+    map pop num_stack
+    # 2
+    map pop num_stack
+    map push num_stack 1
+    map push num_stack 2
+    map push num_stack 3
+    continue
+    # 6
+    map pop num_stack

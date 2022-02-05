@@ -3,3 +3,5 @@ bpf-to-bpf
 trace1
 tailcall
 map-in-map
+stack
+queue

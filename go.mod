@@ -6,7 +6,7 @@ replace github.com/google/gopacket => github.com/dylandreimerink/gopacket v1.1.2
 
 require (
 	github.com/c-bata/go-prompt v0.2.6
-	github.com/dylandreimerink/gobpfld v0.6.1-0.20220205144103-dfdf24bea552
+	github.com/dylandreimerink/gobpfld v0.6.1-0.20220205170718-aec31e9fba37
 	github.com/go-delve/delve v1.8.0
 	github.com/google/gopacket v1.1.19
 	github.com/lithammer/fuzzysearch v1.1.3
