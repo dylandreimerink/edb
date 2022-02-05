@@ -98,7 +98,7 @@ func listMapsExec(args []string) {
 		}
 
 		fmt.Print(blue(fmt.Sprintf("%*d ", indexPadSize, i)))
-		fmt.Printf("%s:\n", m.GetName())
+		fmt.Printf("%s:\n", mapName[i])
 		// TODO print Key and Value types from BTF
 		def := m.GetDef()
 		fmt.Printf("        Type: %s\n", def.Type)
@@ -337,8 +337,12 @@ func nameOrIDToMap(nameOrID string) (emulator.Map, error) {
 	id, err := strconv.Atoi(nameOrID)
 	if err != nil {
 		id = -1
-		for i, m := range vm.Maps {
-			if m.GetName() == nameOrID {
+		for i := range vm.Maps {
+			if i == 0 {
+				continue
+			}
+
+			if mapName[i] == nameOrID {
 				id = i
 				break
 			}

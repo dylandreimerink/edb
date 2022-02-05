@@ -1,0 +1,59 @@
+# edb macro file, don't remove this comment
+prepare-map-in-map:
+    load testdata/map-in-map
+    # Fill fibonacci_numbers
+    map set fibonacci_numbers 0 0
+    map set fibonacci_numbers 1 1
+    map set fibonacci_numbers 2 1
+    map set fibonacci_numbers 3 2
+    map set fibonacci_numbers 4 3
+    map set fibonacci_numbers 5 5
+    map set fibonacci_numbers 6 8
+    map set fibonacci_numbers 7 13
+    # Fill lucky_numbers
+    map set lucky_numbers 0 1
+    map set lucky_numbers 1 3
+    map set lucky_numbers 2 7
+    map set lucky_numbers 3 9
+    map set lucky_numbers 4 13
+    map set lucky_numbers 5 15
+    map set lucky_numbers 6 21
+    map set lucky_numbers 7 25
+    # Fill semi_prime_powers
+    map set semi_prime_powers 0 4
+    map set semi_prime_powers 1 6
+    map set semi_prime_powers 2 9
+    map set semi_prime_powers 3 10
+    map set semi_prime_powers 4 14
+    map set semi_prime_powers 5 15
+    map set semi_prime_powers 6 21
+    map set semi_prime_powers 7 22
+    # Fill untouchable_numbers
+    map set untouchable_numbers 0 2
+    map set untouchable_numbers 1 5
+    map set untouchable_numbers 2 52
+    map set untouchable_numbers 3 88
+    map set untouchable_numbers 4 96
+    map set untouchable_numbers 5 120
+    map set untouchable_numbers 6 124
+    map set untouchable_numbers 7 146
+    #
+    # fibonacci_numbers
+    map set array_of_number_sequences 0 2
+    # lucky_numbers
+    map set array_of_number_sequences 1 3
+    # semi_prime_powers
+    map set array_of_number_sequences 2 5
+    # untouchable_numbers
+    map set array_of_number_sequences 3 6
+    #
+    continue
+    #
+    # Sum of fibonacci_numbers = 33
+    map get results 0
+    # Sum of lucky_numbers = 94
+    map get results 1
+    # Sum of semi_prime_powers = 101
+    map get results 2
+    # Sum of untouchable_numbers = 633
+    map get results 3

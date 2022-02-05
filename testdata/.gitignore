@@ -2,3 +2,4 @@ xdp_stats1
 bpf-to-bpf
 trace1
 tailcall
+map-in-map

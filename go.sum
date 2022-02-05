@@ -117,6 +117,8 @@ github.com/dylandreimerink/gobpfld v0.6.1-0.20220204150256-769313085201 h1:phUj9
 github.com/dylandreimerink/gobpfld v0.6.1-0.20220204150256-769313085201/go.mod h1:egxm+Tcg9E7LPjdMgspGGW2Oc2TQV2EDCr4b6H0pGPI=
 github.com/dylandreimerink/gobpfld v0.6.1-0.20220204160012-0a5d738a5ba4 h1:nJUSNNASt5e+rsXFQojPlZtGcQVqzhfK9TipxEtXjog=
 github.com/dylandreimerink/gobpfld v0.6.1-0.20220204160012-0a5d738a5ba4/go.mod h1:egxm+Tcg9E7LPjdMgspGGW2Oc2TQV2EDCr4b6H0pGPI=
+github.com/dylandreimerink/gobpfld v0.6.1-0.20220205144103-dfdf24bea552 h1:bFB0Zp1E4nEmFw0cGXExaNChl13xZ5MKxw9yWmv1zYQ=
+github.com/dylandreimerink/gobpfld v0.6.1-0.20220205144103-dfdf24bea552/go.mod h1:egxm+Tcg9E7LPjdMgspGGW2Oc2TQV2EDCr4b6H0pGPI=
 github.com/dylandreimerink/gocovmerge v1.0.0/go.mod h1:Ks2zDoZB1/SD5QSn9v3ckYbVMn5JD7vY7UuOQVyI3Bc=
 github.com/dylandreimerink/gopacket v1.1.20-0.20220126223506-0d3623bffc1f h1:bFrU1hXZFhi71fcUwZ6uh1mjh1YmBYFF7NfYdvXFnI8=
 github.com/dylandreimerink/gopacket v1.1.20-0.20220126223506-0d3623bffc1f/go.mod h1:riddUzxTSBpJXk3qBHtYr4qOhFhT6k/1c0E3qkQjQpA=
