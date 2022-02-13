@@ -1,7 +1,6 @@
 package debug
 
 import (
-	"debug/dwarf"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,8 +8,8 @@ import (
 	"strings"
 
 	prompt "github.com/c-bata/go-prompt"
-	"github.com/dylandreimerink/gobpfld"
-	"github.com/dylandreimerink/gobpfld/ebpf"
+	"github.com/cilium/ebpf"
+	"github.com/dylandreimerink/mimic"
 	"github.com/lithammer/fuzzysearch/fuzzy"
 	"github.com/mgutz/ansi"
 )
@@ -75,7 +74,7 @@ func init() {
 		cmdStep,
 		cmdList,
 		cmdMap,
-		cmdLocals,
+		// cmdLocals,
 		cmdMemory,
 		cmdBreakpoint,
 		cmdContinue,
@@ -95,36 +94,97 @@ func printRed(format string, args ...interface{}) {
 	fmt.Print(red(fmt.Sprintf(format, args...)))
 }
 
-func getCurBTFLine() *gobpfld.BTFLine {
-	return getBTFLine(vm.Registers.PI, vm.Registers.PC)
-}
-
-func getBTFLine(programID, instruction int) *gobpfld.BTFLine {
-	btf := programs[programID].GetAbstractProgram().BTF
-	if btf == nil || len(btf.Lines) == 0 {
-		return nil
+func getCurBTFLine() string {
+	var (
+		spec *ebpf.ProgramSpec
+		inst int
+	)
+	if process != nil {
+		spec = process.Program
+		inst = process.Registers.PC
 	}
 
-	rawOffset := instruction * ebpf.BPFInstSize
+	return getBTFLine(spec, inst)
+}
 
-	var lastLine *gobpfld.BTFLine
-	for i, line := range btf.Lines {
-		// Ignore line number zero, it is not valid
-		if line.LineNumber == 0 {
-			continue
-		}
+func getBTFLine(spec *ebpf.ProgramSpec, instruction int) string {
+	if spec == nil {
+		return ""
+	}
 
-		// Return the current line if we find an exact match
-		if line.InstructionOffset == uint32(rawOffset) {
-			return &btf.Lines[i]
-		}
+	// Walk up, until we found the nearest not empty line
+	var line string
+	for i := instruction; line == "" && i >= 0; i-- {
+		line = spec.Instructions[i].Line()
+	}
 
-		// If we have overshot the offset, return the last line (best approximation)
-		if line.InstructionOffset > uint32(rawOffset) {
-			return lastLine
-		}
+	return line
+}
 
-		lastLine = &btf.Lines[i]
+func getCurBTFFilename() string {
+	var (
+		spec *ebpf.ProgramSpec
+		inst int
+	)
+	if process != nil {
+		spec = process.Program
+		inst = process.Registers.PC
+	}
+
+	return getBTFFilename(spec, inst)
+}
+
+func getBTFFilename(spec *ebpf.ProgramSpec, instruction int) string {
+	if spec == nil {
+		return ""
+	}
+
+	// Walk up, until we found the nearest not empty filename
+	var filename string
+	for i := instruction; filename == "" && i >= 0; i-- {
+		filename = spec.Instructions[i].FileName()
+	}
+
+	return filename
+}
+
+func getCurBTFLineNumber() int {
+	var (
+		spec *ebpf.ProgramSpec
+		inst int
+	)
+	if process != nil {
+		spec = process.Program
+		inst = process.Registers.PC
+	}
+
+	return getBTFLineNumber(spec, inst)
+}
+
+func getBTFLineNumber(spec *ebpf.ProgramSpec, instruction int) int {
+	if spec == nil {
+		return 0
+	}
+
+	// Walk up, until we found the nearest not empty filename
+	var filename int
+	for i := instruction; filename == 0 && i >= 0; i-- {
+		filename = spec.Instructions[i].LineNumber()
+	}
+
+	return filename
+}
+
+func startProcess() error {
+	var ctx mimic.Context
+	if len(contexts) > curCtx {
+		ctx = contexts[curCtx]
+	}
+
+	var err error
+	process, err = vm.NewProcess(entrypoint, ctx)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -304,51 +364,6 @@ func completer(in prompt.Document) []prompt.Suggest {
 	}
 
 	return suggestions
-}
-
-func getBTFFunc() gobpfld.BTFFunc {
-	var curFunc gobpfld.BTFFunc
-
-	btf := programs[vm.Registers.PI].GetAbstractProgram().BTF
-	for i := range btf.Funcs {
-		// If this is the last element
-		if i+1 >= len(btf.Funcs) {
-			curFunc = btf.Funcs[i]
-			break
-		}
-
-		ipc := int(btf.Funcs[i].InstructionOffset) / ebpf.BPFInstSize
-		npc := int(btf.Funcs[i+1].InstructionOffset) / ebpf.BPFInstSize
-		if ipc <= vm.Registers.PC && npc > vm.Registers.PC {
-			curFunc = btf.Funcs[i]
-			break
-		}
-	}
-
-	return curFunc
-}
-
-func dwarfTypeName(node *EntryNode) string {
-	det := progDwarf[vm.Registers.PI]
-
-	e := node.Entry
-	if attrType := e.AttrField(dwarf.AttrType); attrType != nil {
-		entryType := det.EntitiesByOffset[attrType.Val.(dwarf.Offset)]
-
-		attrName := entryType.Entry.AttrField(dwarf.AttrName)
-		if attrName != nil {
-			return attrName.Val.(string)
-		}
-
-		switch entryType.Entry.Tag {
-		case dwarf.TagPointerType:
-			return "*" + dwarfTypeName(entryType)
-		default:
-			panic(fmt.Sprintf("can't find name for %s", entryType.Entry.Tag))
-		}
-	}
-
-	return ""
 }
 
 func fileCompletion(args []string) []prompt.Suggest {

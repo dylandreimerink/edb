@@ -2,15 +2,12 @@ package debug
 
 import (
 	"bytes"
-	"encoding/base64"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 
-	"github.com/dylandreimerink/gobpfld/emulator"
+	"github.com/dylandreimerink/mimic"
 )
 
 var cmdCtx = Command{
@@ -66,13 +63,13 @@ func listCtxExec(args []string) {
 		}
 
 		fmt.Print(blue(fmt.Sprintf("%*d ", indexPadSize, i)))
-		fmt.Printf("%s (%s)\n", ctx.Name, ctx.MemPtr.String())
+		fmt.Printf("%s\n", ctx.GetName())
 	}
 }
 
 func setCtxExec(args []string) {
 	if len(args) < 1 {
-		printRed("Missing required argument 'program index|program name'\n")
+		printRed("Missing required argument 'context index'\n")
 		return
 	}
 
@@ -88,15 +85,17 @@ func setCtxExec(args []string) {
 	}
 
 	curCtx = id
-	fmt.Printf("Switched current context to '%d' (%s)\n", id, contexts[id].Name)
+	fmt.Printf("Switched current context to '%d' (%s)\n", id, contexts[id].GetName())
 
 	// If we are not in the middle of program execution, reset the VM.
-	// We do this to set the context of the program(R1)
-	if vm.Registers.PC == 0 && vm.Registers.PI == entrypoint {
-		cmdReset.Exec(nil)
-		fmt.Printf("VM reset, new context now in R1\n")
+	if process == nil || process.Registers.PC == 0 {
+		if process != nil {
+			cmdReset.Exec(nil)
+		}
+
+		fmt.Printf("VM reset, new context loaded\n")
 	} else {
-		fmt.Printf("A program is currently running, R1 not updated, execute 'reset' to update R1\n")
+		fmt.Printf("A program is currently running, context not updated, execute 'reset' to update the context\n")
 	}
 }
 
@@ -112,7 +111,7 @@ func loadCtxExec(args []string) {
 		return
 	}
 
-	var ctxs []Ctx
+	var ctxs []json.RawMessage
 
 	dec := json.NewDecoder(f)
 	err = dec.Decode(&ctxs)
@@ -122,406 +121,19 @@ func loadCtxExec(args []string) {
 	}
 
 	for i, ctx := range ctxs {
-		ptr, err := ctx.ToMemPtr()
+		context, err := mimic.UnmarshalContextJSON(bytes.NewReader(ctx))
 		if err != nil {
-			printRed("ctx '%d' to ptr error: %s\n", i, err)
+			printRed("error decoding context %d in context file: %s\n", i, err)
 			return
 		}
 
-		contexts = append(contexts, Context{
-			Name:   ctx.Name,
-			MemPtr: ptr,
-		})
+		contexts = append(contexts, context)
 	}
 
 	fmt.Printf("%d contexts were loaded\n", len(ctxs))
 
 	// If we are not in the middle of program execution, reset the VM.
-	// We do this to set the context of the program(R1)
-	if vm.Registers.PC == 0 && vm.Registers.PI == entrypoint {
+	if process.Registers.PC == 0 {
 		cmdReset.Exec(nil)
 	}
-}
-
-type Context struct {
-	Name   string
-	MemPtr *emulator.MemoryPtr
-}
-
-// TODO move all of the Ctx structs to their own package as a library so others might use them to generate contexts
-// outside of this project.
-type Ctx struct {
-	Name string `json:"name"`
-	// The name of the data which will be the actual context to be passed
-	Ctx string `json:"ctx"`
-	// Used during decoding
-	RawData map[string]json.RawMessage `json:"data"`
-	// Pieces of named data
-	Data map[string]CtxData `json:"-"`
-}
-
-func (ctx *Ctx) ToMemPtr() (*emulator.MemoryPtr, error) {
-	var ptr emulator.MemoryPtr
-
-	mem, found := ctx.Data[ctx.Ctx]
-	if !found {
-		return nil, fmt.Errorf("ctx has value '%s' but no data object with that name found", ctx.Ctx)
-	}
-
-	var err error
-	ptr.Memory, err = mem.ToMemory(ctx.Ctx, ctx)
-	if err != nil {
-		return nil, fmt.Errorf("data object to memory '%s' error: %w", ctx.Ctx, err)
-	}
-
-	return &ptr, nil
-}
-
-func (ctx *Ctx) UnmarshalJSON(b []byte) error {
-	// Use an alias to avoid infinite loop
-	type PseudoCtx Ctx
-	var pctx PseudoCtx
-
-	err := json.Unmarshal(b, &pctx)
-	if err != nil {
-		return fmt.Errorf("unmarshal ctx: %w", err)
-	}
-
-	*ctx = Ctx(pctx)
-	ctx.Data = make(map[string]CtxData)
-
-	type CtxType struct {
-		Type string `json:"type"`
-	}
-
-	var t CtxType
-	for name, raw := range ctx.RawData {
-		err = json.Unmarshal(raw, &t)
-		if err != nil {
-			return fmt.Errorf("unmarshal data '%s': %w", name, err)
-		}
-
-		var d CtxData
-		switch t.Type {
-		case "memory":
-			v := &CtxMemory{}
-			err = json.Unmarshal(raw, v)
-			if err != nil {
-				return fmt.Errorf("unmarshal memory '%s': %w", name, err)
-			}
-			d = v
-
-		case "ptr":
-			v := &CtxPtr{}
-			err = json.Unmarshal(raw, v)
-			if err != nil {
-				return fmt.Errorf("unmarshal ptr '%s': %w", name, err)
-			}
-			d = v
-
-		case "int":
-			v := &CtxInt{}
-			err = json.Unmarshal(raw, v)
-			if err != nil {
-				return fmt.Errorf("unmarshal int '%s': %w", name, err)
-			}
-			d = v
-
-		case "struct":
-			v := &CtxStruct{}
-			err = json.Unmarshal(raw, v)
-			if err != nil {
-				return fmt.Errorf("unmarshal struct '%s': %w", name, err)
-			}
-			d = v
-
-		default:
-			return fmt.Errorf("can't decode data type '%s'", t.Type)
-		}
-
-		ctx.Data[name] = d
-	}
-
-	return nil
-}
-
-func (ctx *Ctx) MarshalJSON() ([]byte, error) {
-	ctx.RawData = make(map[string]json.RawMessage)
-
-	for name, data := range ctx.Data {
-		jsonData, err := json.Marshal(data)
-		if err != nil {
-			return nil, fmt.Errorf("json.marshal '%s': %w", name, err)
-		}
-
-		ctx.RawData[name] = jsonData
-	}
-
-	// Use an alias to avoid infinite loop
-	type PseudoCtx Ctx
-	pctx := PseudoCtx(*ctx)
-
-	return json.Marshal(pctx)
-}
-
-type CtxData interface {
-	ToMemory(name string, ctx *Ctx) (emulator.Memory, error)
-}
-
-type CtxMemory struct {
-	Value     []byte           `json:"value"`
-	ByteOrder binary.ByteOrder `json:"byteorder,omitempty"`
-	mem       *emulator.ByteMemory
-}
-
-func (cm *CtxMemory) ToMemory(name string, ctx *Ctx) (emulator.Memory, error) {
-	if cm.mem != nil &&
-		bytes.Equal(cm.mem.Backing, cm.Value) &&
-		cm.mem.ByteOrder == cm.ByteOrder &&
-		cm.mem.MemName == name {
-		return cm.mem, nil
-	}
-
-	cm.mem = &emulator.ByteMemory{
-		MemName:   name,
-		ByteOrder: cm.ByteOrder,
-		Backing:   cm.Value,
-	}
-	return cm.mem, nil
-}
-
-func (cm *CtxMemory) UnmarshalJSON(b []byte) error {
-	type ctxMem struct {
-		Value     string `json:"value"`
-		ByteOrder string `json:"byteorder"`
-	}
-	var m ctxMem
-
-	err := json.Unmarshal(b, &m)
-	if err != nil {
-		return err
-	}
-
-	cm.Value, err = base64.StdEncoding.DecodeString(m.Value)
-	if err != nil {
-		return fmt.Errorf("base64 decode: '%s' is not valid base64: %w", m.Value, err)
-	}
-
-	switch strings.ToLower(m.ByteOrder) {
-	case "le", "littleendian", "little endian", "little-endian":
-		cm.ByteOrder = binary.LittleEndian
-	case "be", "bigendian", "big endian", "big-endian":
-		cm.ByteOrder = binary.BigEndian
-	default:
-		return fmt.Errorf("'%s' is not valid byte order", m.Value)
-	}
-
-	return nil
-}
-
-func (cm *CtxMemory) MarshalJSON() ([]byte, error) {
-	type ctxMem struct {
-		Type      string `json:"type"`
-		Value     string `json:"value"`
-		ByteOrder string `json:"byteorder"`
-	}
-	m := ctxMem{
-		Type:      "memory",
-		Value:     base64.StdEncoding.EncodeToString(cm.Value),
-		ByteOrder: binary.LittleEndian.String(),
-	}
-	if cm.ByteOrder == binary.BigEndian {
-		m.ByteOrder = binary.BigEndian.String()
-	}
-	return json.Marshal(m)
-}
-
-type CtxPtr struct {
-	MemoryName string `json:"value"`
-	Offset     int    `json:"offset"`
-	Size       int    `json:"size"`
-}
-
-func (cp *CtxPtr) ToPtr(name string, ctx *Ctx) (*emulator.MemoryPtr, error) {
-	ctxMem, found := ctx.Data[cp.MemoryName]
-	if !found {
-		return nil, fmt.Errorf("ptr object '%s' references data object '%s' which doesn't exist", name, cp.MemoryName)
-	}
-
-	mem, err := ctxMem.ToMemory(cp.MemoryName, ctx)
-	if err != nil {
-		return nil, fmt.Errorf("data object '%s' to memory error: %w", cp.MemoryName, err)
-	}
-
-	return &emulator.MemoryPtr{
-		Memory: mem,
-		Offset: int64(cp.Offset),
-	}, nil
-}
-
-func (cp *CtxPtr) ToMemory(name string, ctx *Ctx) (emulator.Memory, error) {
-	bytes, err := sizeToBytes(cp.Size)
-	if err != nil {
-		return nil, fmt.Errorf("data object '%s': %w", name, err)
-	}
-
-	valMem := &emulator.ValueMemory{
-		MemName: name,
-		Mapping: make([]emulator.RegisterValue, bytes),
-	}
-
-	ptr, err := cp.ToPtr(name, ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	for i := 0; i < bytes; i++ {
-		valMem.Mapping[i] = ptr
-	}
-
-	return valMem, nil
-}
-
-func (cp *CtxPtr) MarshalJSON() ([]byte, error) {
-	type ctxPtr struct {
-		Type       string `json:"type"`
-		MemoryName string `json:"value"`
-		Offset     int    `json:"offset"`
-		Size       int    `json:"size"`
-	}
-	m := ctxPtr{
-		Type:       "ptr",
-		MemoryName: cp.MemoryName,
-		Offset:     cp.Offset,
-		Size:       cp.Size,
-	}
-	return json.Marshal(m)
-}
-
-type CtxInt struct {
-	Value int `json:"value"`
-	Size  int `json:"size"`
-}
-
-func (ci *CtxInt) ToMemory(name string, ctx *Ctx) (emulator.Memory, error) {
-	bytes, err := sizeToBytes(ci.Size)
-	if err != nil {
-		return nil, fmt.Errorf("data object '%s': %w", name, err)
-	}
-
-	valMem := &emulator.ValueMemory{
-		MemName: name,
-		Mapping: make([]emulator.RegisterValue, bytes),
-	}
-
-	imm := emulator.IMMValue(ci.Value)
-
-	for i := 0; i < bytes; i++ {
-		valMem.Mapping[i] = &imm
-	}
-
-	return valMem, nil
-}
-
-func (ci *CtxInt) MarshalJSON() ([]byte, error) {
-	type ctxInt struct {
-		Type  string `json:"type"`
-		Value int    `json:"value"`
-		Size  int    `json:"size"`
-	}
-	m := ctxInt{
-		Type:  "int",
-		Value: ci.Value,
-		Size:  ci.Size,
-	}
-	return json.Marshal(m)
-}
-
-type CtxStruct struct {
-	FieldNames []string `json:"fields"`
-}
-
-func (cs *CtxStruct) ToMemory(name string, ctx *Ctx) (emulator.Memory, error) {
-	valMem := &emulator.ValueMemory{
-		MemName: name,
-		Mapping: make([]emulator.RegisterValue, 0),
-	}
-
-	for _, field := range cs.FieldNames {
-		ctxField, found := ctx.Data[field]
-		if !found {
-			return nil, fmt.Errorf("struct object '%s' references data object '%s' which doesn't exist", name, field)
-		}
-
-		switch ctxField := ctxField.(type) {
-		case *CtxInt:
-			bytes, err := sizeToBytes(ctxField.Size)
-			if err != nil {
-				return nil, fmt.Errorf("int object '%s': %w", field, err)
-			}
-			intVal := emulator.IMMValue(ctxField.Value)
-			for i := 0; i < bytes; i++ {
-				valMem.Mapping = append(valMem.Mapping, &intVal)
-			}
-
-		case *CtxMemory:
-			for _, b := range ctxField.Value {
-				intVal := emulator.IMMValue(b)
-				valMem.Mapping = append(valMem.Mapping, &intVal)
-			}
-
-		case *CtxPtr:
-			ptr, err := ctxField.ToPtr(field, ctx)
-			if err != nil {
-				return nil, err
-			}
-			bytes, err := sizeToBytes(ctxField.Size)
-			if err != nil {
-				return nil, fmt.Errorf("int object '%s': %w", field, err)
-			}
-			for i := 0; i < bytes; i++ {
-				valMem.Mapping = append(valMem.Mapping, ptr)
-			}
-
-		case *CtxStruct:
-			ctxMem, err := ctxField.ToMemory(field, ctx)
-			if err != nil {
-				return nil, err
-			}
-
-			valMem.Mapping = append(valMem.Mapping, ctxMem.(*emulator.ValueMemory).Mapping...)
-
-		default:
-
-		}
-	}
-
-	return valMem, nil
-}
-
-func (cs *CtxStruct) MarshalJSON() ([]byte, error) {
-	type ctxStruct struct {
-		Type       string   `json:"type"`
-		FieldNames []string `json:"fields"`
-	}
-	m := ctxStruct{
-		Type:       "struct",
-		FieldNames: cs.FieldNames,
-	}
-	return json.Marshal(m)
-}
-
-func sizeToBytes(size int) (int, error) {
-	switch size {
-	case 8:
-		return 1, nil
-	case 16:
-		return 2, nil
-	case 32:
-		return 4, nil
-	case 64:
-		return 8, nil
-	}
-
-	return 0, fmt.Errorf("invalid size '%d', must be one of: 8, 16, 32, 64")
 }

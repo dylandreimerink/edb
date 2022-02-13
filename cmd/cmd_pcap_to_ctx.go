@@ -7,7 +7,7 @@ import (
 	"net"
 	"os"
 
-	"github.com/dylandreimerink/edb/cmd/debug"
+	"github.com/dylandreimerink/mimic"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcapgo"
@@ -35,7 +35,7 @@ func runPCAPToCtx(cmd *cobra.Command, args []string) error {
 
 	lt := r.LinkType()
 
-	var ctxs []debug.Ctx
+	var ctxs []mimic.Context
 
 	for i := 0; true; i++ {
 		data, ci, err := r.ReadPacketData()
@@ -118,49 +118,93 @@ func runPCAPToCtx(cmd *cobra.Command, args []string) error {
 			// Already an ethernet packet, nothing to do here
 		}
 
-		ctx := debug.Ctx{
+		ctx := &mimic.GenericContext{
 			Name: ci.Timestamp.String(),
-			Ctx:  "xdp_md",
-			Data: map[string]debug.CtxData{
-				"pkt": &debug.CtxMemory{
-					// TODO determine endianness of pcap
-					Value: data,
+			Registers: mimic.GenericContextRegisters{
+				R1: "xdp_md",
+			},
+			Memory: []mimic.GenericContextMemory{
+				{
+					Name: "pkt",
+					Block: &mimic.GenericContextMemoryBlock{
+						Value: data,
+						// TODO determine endianness of pcap
+					},
 				},
-				"data": &debug.CtxPtr{
-					MemoryName: "pkt",
-					Offset:     0,
-					Size:       32,
+				{
+					Name: "data",
+					Pointer: &mimic.GenericContextPointer{
+						Memory: "pkt",
+						Offset: 0,
+						Size:   32,
+					},
 				},
-				"data_end": &debug.CtxPtr{
-					MemoryName: "pkt",
-					Offset:     len(data),
-					Size:       32,
+				{
+					Name: "data_end",
+					Pointer: &mimic.GenericContextPointer{
+						Memory: "pkt",
+						Offset: len(data),
+						Size:   32,
+					},
 				},
-				"data_meta": &debug.CtxPtr{
-					MemoryName: "pkt",
-					Offset:     0,
-					Size:       32,
+				{
+					Name: "data_meta",
+					Pointer: &mimic.GenericContextPointer{
+						Memory: "pkt",
+						Offset: 0,
+						Size:   32,
+					},
 				},
-				"ingress_ifindex": &debug.CtxInt{
-					Value: InterfaceIndex,
-					Size:  32,
+				{
+					Name: "ingress_ifindex",
+					Int: &mimic.GenericContextInt{
+						Value: int64(InterfaceIndex),
+						Size:  32,
+					},
 				},
-				"rx_queue_index": &debug.CtxInt{
-					// PCAP files don't contain rx_queue_index info
-					Size: 32,
+				{
+					Name: "rx_queue_index",
+					Int: &mimic.GenericContextInt{
+						// PCAP files don't contain rx_queue_index info
+						Size: 32,
+					},
 				},
-				"egress_ifindex": &debug.CtxInt{
-					Value: 0,
-					Size:  32,
+				{
+					Name: "egress_ifindex",
+					Int: &mimic.GenericContextInt{
+						Value: 0,
+						Size:  32,
+					},
 				},
-				"xdp_md": &debug.CtxStruct{
-					FieldNames: []string{
-						"data",
-						"data_end",
-						"data_meta",
-						"ingress_ifindex",
-						"rx_queue_index",
-						"egress_ifindex",
+				{
+					Name: "xdp_md",
+					Struct: &mimic.GenericContextStruct{
+						Fields: []mimic.GenericContextStructField{
+							{
+								Name:   "data",
+								Memory: "data",
+							},
+							{
+								Name:   "data_end",
+								Memory: "data_end",
+							},
+							{
+								Name:   "data_meta",
+								Memory: "data_meta",
+							},
+							{
+								Name:   "ingress_ifindex",
+								Memory: "ingress_ifindex",
+							},
+							{
+								Name:   "rx_queue_index",
+								Memory: "rx_queue_index",
+							},
+							{
+								Name:   "egress_ifindex",
+								Memory: "egress_ifindex",
+							},
+						},
 					},
 				},
 			},

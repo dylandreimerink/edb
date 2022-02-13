@@ -10,14 +10,13 @@ var cmdStep = Command{
 }
 
 func stepExec(args []string) {
-	if len(vm.Programs) <= vm.Registers.PI {
-		printRed("No program loaded at index '%d'\n", vm.Registers.PI)
-		return
+	if process == nil {
+		cmdReset.Exec(nil)
 	}
 
 	startLine := getCurBTFLine()
 	for {
-		stop, err := vm.Step()
+		stop, err := process.Step()
 		if err != nil {
 			printRed("%s\n", err)
 			break
@@ -29,7 +28,7 @@ func stepExec(args []string) {
 		}
 
 		curLine := getCurBTFLine()
-		if curLine == nil || startLine == nil || curLine.LineNumber != startLine.LineNumber {
+		if curLine == "" || startLine == "" || curLine != startLine {
 			break
 		}
 	}

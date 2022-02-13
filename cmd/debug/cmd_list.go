@@ -15,21 +15,16 @@ var cmdList = Command{
 }
 
 func listLinesExec(args []string) {
-	if len(vm.Programs) <= vm.Registers.PI {
-		printRed("No program loaded at index '%d'\n", vm.Registers.PI)
-		return
-	}
+	file := getCurBTFFilename()
 
-	btfLine := getCurBTFLine()
-
-	if btfLine == nil {
+	if file == "" {
 		fmt.Println(yellow("Program has no BTF, can't list lines, showing instruction instread"))
 		listInstructionExec(nil)
 		return
 	}
 
 	// TODO cache files
-	f, err := os.Open(btfLine.FileName)
+	f, err := os.Open(file)
 	if err != nil {
 		// TODO fall back to just BTF in case we can't open the original source file
 		printRed("error open source: %s\n", err)
@@ -40,11 +35,11 @@ func listLinesExec(args []string) {
 	s := bufio.NewScanner(f)
 
 	const windowsize = 9
-	start := int(btfLine.LineNumber) - windowsize
+	start := getCurBTFLineNumber() - windowsize
 	if start < 0 {
 		start = 0
 	}
-	end := int(btfLine.LineNumber + windowsize)
+	end := getCurBTFLineNumber() + windowsize
 
 	// Scan up to the start of the line
 	i := 1
@@ -58,7 +53,7 @@ func listLinesExec(args []string) {
 			break
 		}
 
-		if i == int(btfLine.LineNumber) {
+		if i == getCurBTFLineNumber() {
 			fmt.Print(yellow(" => "))
 		} else {
 			fmt.Print("    ")

@@ -4,26 +4,20 @@ import (
 	"fmt"
 
 	prompt "github.com/c-bata/go-prompt"
-	"github.com/dylandreimerink/gobpfld"
-	"github.com/dylandreimerink/gobpfld/emulator"
+	"github.com/dylandreimerink/mimic"
 	"github.com/spf13/cobra"
 )
 
 var (
-	vm *emulator.VM
+	vm         *mimic.VM
+	vmEmulator *mimic.LinuxEmulator = &mimic.LinuxEmulator{}
+	process    *mimic.Process
 
 	curCtx   int
-	contexts []Context
+	contexts []mimic.Context
 
-	// Make program 1 the default entrypoint
-	entrypoint int = 1
-	// Programs start from 1, this is to catch errors where a program or map index is zero due to a bug
-	// Making 0 an invalid number so programs crash is preferred over silently wrong behavior
-	programs  = []gobpfld.BPFProgram{nil}
-	progName  = []string{""}
-	progDwarf = []*DET{nil}
-
-	mapName = []string{""}
+	entrypoint int = 0
+	// progDwarf = []*DET{nil}
 
 	breakpoints []Breakpoint
 )
@@ -35,11 +29,7 @@ func DebugCmd() *cobra.Command {
 		Use:   "debug",
 		Short: "debug starts an interactive debug session",
 		Run: func(cmd *cobra.Command, args []string) {
-			var err error
-			vm, err = emulator.NewVM(emulator.DefaultVMSettings())
-			if err != nil {
-				panic(err)
-			}
+			vm = mimic.NewVM(mimic.VMOptEmulator(vmEmulator))
 
 			if macroPath != "" {
 				runMacroExec([]string{macroPath})

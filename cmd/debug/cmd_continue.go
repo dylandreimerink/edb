@@ -10,16 +10,15 @@ var cmdContinue = Command{
 }
 
 func continueExec(args []string) {
-	if len(vm.Programs) <= vm.Registers.PI {
-		printRed("No program loaded at index '%d'\n", vm.Registers.PI)
-		return
+	if process == nil {
+		cmdReset.Exec(nil)
 	}
 
 	// TODO if the breakpoint type is line oriented, don't break until we have at least progressed past the
 	//   	current line (1 line can take up multiple instructions)
 
 	for {
-		stop, err := vm.Step()
+		stop, err := process.Step()
 		if err != nil {
 			printRed("%s\n", err)
 			break
@@ -31,7 +30,7 @@ func continueExec(args []string) {
 		}
 
 		for i, bp := range breakpoints {
-			if !bp.ShouldBreak(vm) {
+			if !bp.ShouldBreak(process) {
 				continue
 			}
 

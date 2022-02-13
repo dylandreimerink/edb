@@ -61,7 +61,6 @@ Commands:
   step (Alias: s) ------------------------- Step through the program one line a time
   list (Alias: ls) ------------------------ Lists the lines of the source code
   map (Alias: maps) ----------------------- Map related operations
-  locals (Alias: lv) ---------------------- Lists the local variables
   memory (Alias: mem) --------------------- Show the contents of memory
   breakpoint (Aliases: b, br, bp, break) -- Commands related to breakpoints
   continue (Alias: c) --------------------- Continue execution of the program until it exits or a breakpoint is hit
@@ -98,6 +97,16 @@ Sub commands:
   get ------------------------------------- Get the value of a particular key in a map
   set ------------------------------------- Set a value at a particular spot in a map
   del ------------------------------------- Delete a value from a map with the given key
+```
+
+```
+(edb) help memory
+memory {sub-command} - Show the contents of memory
+
+Sub commands:
+  list (Alias: ls) ------------------------ List all memory objects and their addresses
+  read ------------------------------------ Read the contents of a specific virtual address
+  read-all -------------------------------- Read and show the whole contents of addressable memory
 ```
 
 ```
@@ -175,8 +184,9 @@ Any contributions are welcome.
 - `map export` command to export the contents of a map to a file or to a pined map with the same definition. The idea being that you could run your program and then export the output so it can be interpreted by a userspace application.
 - Optional kernel verification - It would be nice to attempt to load the program into the kernel to get the verifiers opinion of the program. The debugger might then interpret the verifier log and more clearly show or explain why the program was rejected.
 - Debug xlated instructions - The verifier will in some cases changed the actual program instructions(xlated) to add additional runtime checks, by loading a program into the kernel and reading back the xlated instruction we can more closely replicate what actually happens in the kernel.
+- Profiling / tracing - This would not be accurate performance wise, but it might be informative to see which code paths get covered the most. So perhaps something more like code-coverage reporting. Another idea is to provide "calibration" data, would work something like: 1. create a BPF program with just a single instruction and benchmark how long execution of that single instruction takes on average(using the BPF test feature), 2. repeat step 1 for each instruction(in the current program or just overall) and store results in a calibration file, 3. use a calibration file (from localhost or a production setup) and apply it to our custom trace to get more realistic profiles.
 - DAP(Debug Adaptor Protocol) support for debugging from VSCode
 - C Syntax highlighting (what about when sources are not C? Maybe IDE/Editor integration is a better way to go)
 - Actual map backing - We could optionally use actual BPF maps instead of emulated maps. Enabling this option would only be possible on linux since other OS'es won't have actual eBPF support. The big pro is that, in an environment with multiple eBPF programs, you could run 1 in debug mode and still be able to communicate with the eBPF programs loaded in the kernel. Another pro could be (if possible) that an actual userspace program can interact with the eBPF program like it would when loaded in the kernel. 
 - Context capture command - We should be able to make an eBPF program for each program type which captures the context that is passed in by the actual kernel, copy it to a PERF buffer or ringbuffer and then turn it into a ctx.json file to be used by the debugger.
-- "Live mode/trace mode" - So in theory if we have "context capture command" working, why not directly directly connect its output to a running debugger session? That would be the most "real" experience. If we also combine this with actual eBPF maps as backing, and the only difference would be that the emulated program can't react, it is readonly. It might be a good idea to "trace" execution, so disabling breakpoints but recording all actions the program took, which we can later load into a debug session to inspect. 
+- "Live mode/trace mode" - So in theory if we have "context capture command" working, why not directly connect its output to a running debugger session? That would be the most "real" experience. If we also combine this with actual eBPF maps as backing, and the only difference would be that the emulated program can't react, it is readonly. It might be a good idea to "trace" execution, so disabling breakpoints but recording all actions the program took, which we can later load into a debug session to inspect. 

@@ -36,14 +36,10 @@ var cmdProgram = Command{
 }
 
 func listProgramsExec(args []string) {
-	indexPadSize := len(strconv.Itoa(len(progName)))
-	for i, name := range progName {
-		// Skip zero since it is an invalid program index
-		if i == 0 {
-			continue
-		}
-
-		if i == vm.Registers.PI {
+	programs := vm.GetPrograms()
+	indexPadSize := len(strconv.Itoa(len(programs)))
+	for i, program := range programs {
+		if process != nil && process.Program.Name == program.Name {
 			fmt.Print(yellow(" => "))
 		} else if i == entrypoint {
 			fmt.Print(green(" => "))
@@ -52,7 +48,7 @@ func listProgramsExec(args []string) {
 		}
 
 		fmt.Print(blue(fmt.Sprintf("%*d ", indexPadSize, i)))
-		fmt.Printf("%s (%s)\n", name, programs[i].GetAbstractProgram().ProgramType)
+		fmt.Printf("%s (%s)\n", program.Name, program.Type)
 	}
 }
 
@@ -62,15 +58,17 @@ func setProgramEntrypointExec(args []string) {
 		return
 	}
 
+	programs := vm.GetPrograms()
+
 	success := func(id int) {
 		entrypoint = id
-		fmt.Printf("Entrypoint program set to '%s' (%d)\n", progName[entrypoint], entrypoint)
+		fmt.Printf("Entrypoint program set to '%s' (%d)\n", vm.GetPrograms()[entrypoint].Name, entrypoint)
 
-		if vm.Registers.PC == 0 {
+		if process == nil || process.Registers.PC == 0 {
 			fmt.Printf("Program counter at 0, changed current program\n")
-			err := vm.SetEntrypoint(entrypoint)
-			if err != nil {
-				printRed(fmt.Sprintf("Error setting entrypoint: %s\n", err))
+
+			if process != nil {
+				process.Program = programs[entrypoint]
 			}
 		} else {
 			fmt.Printf("Program mid execution, current program unchanged, execute 'reset' to go to entrypoint\n")
@@ -79,7 +77,7 @@ func setProgramEntrypointExec(args []string) {
 
 	nameOrID := args[0]
 	if id, err := strconv.Atoi(nameOrID); err == nil {
-		if id < 1 || len(programs) <= id {
+		if len(programs) <= id {
 			printRed("No program with id '%d' exists, use 'programs list' to see valid options\n", id)
 			return
 		}
@@ -88,8 +86,8 @@ func setProgramEntrypointExec(args []string) {
 		return
 	}
 
-	for id, name := range progName {
-		if name == nameOrID {
+	for id, prog := range programs {
+		if prog.Name == nameOrID {
 			success(id)
 			return
 		}

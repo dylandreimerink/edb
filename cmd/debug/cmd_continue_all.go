@@ -13,16 +13,15 @@ var cmdContinueAll = Command{
 }
 
 func continueAllExec(args []string) {
-	if len(vm.Programs) <= vm.Registers.PI {
-		printRed("No program loaded at index '%d'\n", vm.Registers.PI)
-		return
+	if process == nil {
+		cmdReset.Exec(nil)
 	}
 
 	// TODO if the breakpoint type is line oriented, don't break until we have at least progressed past the
 	//   	current line (1 line can take up multiple instructions)
 
 	for {
-		stop, err := vm.Step()
+		stop, err := process.Step()
 		if err != nil {
 			printRed("%s\n", err)
 			break
@@ -30,10 +29,19 @@ func continueAllExec(args []string) {
 
 		if stop {
 			if curCtx+1 < len(contexts) {
+				err = process.Cleanup()
+				if err != nil {
+					printRed("%s\n", err)
+					break
+				}
+
 				curCtx++
-				vm.Reset()
-				vm.Registers.PI = entrypoint
-				vm.Registers.R1 = contexts[curCtx].MemPtr
+				process, err = vm.NewProcess(entrypoint, contexts[curCtx])
+				if err != nil {
+					printRed("%s\n", err)
+					break
+				}
+
 				continue
 			}
 
@@ -43,7 +51,7 @@ func continueAllExec(args []string) {
 		}
 
 		for i, bp := range breakpoints {
-			if !bp.ShouldBreak(vm) {
+			if !bp.ShouldBreak(process) {
 				continue
 			}
 

@@ -1,6 +1,8 @@
 package debug
 
-import "fmt"
+import (
+	"fmt"
+)
 
 var cmdStepInstruction = Command{
 	Name:    "step-instruction",
@@ -10,7 +12,11 @@ var cmdStepInstruction = Command{
 }
 
 func stepInstructionExec(args []string) {
-	stop, err := vm.Step()
+	if process == nil {
+		cmdReset.Exec(nil)
+	}
+
+	stop, err := process.Step()
 	if err != nil {
 		printRed("%s\n", err)
 	}

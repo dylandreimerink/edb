@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dylandreimerink/gobpfld"
+	"github.com/cilium/ebpf"
 )
 
 var cmdListInstructions = Command{
@@ -16,16 +16,31 @@ var cmdListInstructions = Command{
 }
 
 func listInstructionExec(args []string) {
-	if len(vm.Programs) <= vm.Registers.PI {
-		printRed("No program loaded at index '%d'\n", vm.Registers.PI)
+	var program *ebpf.ProgramSpec
+
+	// If we have a running process, use its current program
+	if process != nil {
+		program = process.Program
+	} else {
+		programs := vm.GetPrograms()
+		if entrypoint < len(programs) {
+			program = programs[entrypoint]
+		}
+	}
+
+	if program == nil {
+		printRed("Invalid entrypoint or no programs loaded yet\n")
 		return
 	}
 
-	program := vm.Programs[vm.Registers.PI]
+	pc := 0
+	if process != nil {
+		pc = process.Registers.PC
+	}
 
 	const windowsize = 9
-	start := vm.Registers.PC - windowsize
-	end := vm.Registers.PC + windowsize
+	start := pc - windowsize
+	end := pc + windowsize
 
 	var err error
 	if len(args) >= 1 {
@@ -47,8 +62,8 @@ func listInstructionExec(args []string) {
 	if start < 0 {
 		start = 0
 	}
-	if end > len(program) {
-		end = len(program)
+	if end > len(program.Instructions) {
+		end = len(program.Instructions)
 	}
 
 	if end <= start {
@@ -56,25 +71,34 @@ func listInstructionExec(args []string) {
 		return
 	}
 
-	var lastLine *gobpfld.BTFLine
+	var lastLine string
 
 	indexPadSize := len(strconv.Itoa(end))
 	for i := start; i < end; i++ {
-		curLine := getBTFLine(vm.Registers.PI, i)
-		if curLine != lastLine && curLine != nil {
-			line := strings.TrimSpace(curLine.Line)
+		inst := program.Instructions[i]
+
+		if inst.Symbol() != "" {
+			fmt.Print("<", yellow(inst.Symbol()), ">:\n")
+		}
+
+		var curLine string
+		if inst.Line() != "" {
+			curLine = inst.Line()
+		}
+		if curLine != lastLine && curLine != "" {
+			line := strings.TrimSpace(curLine)
 			fmt.Print("   ", strings.Repeat(" ", indexPadSize), "; ")
 			fmt.Println(green(line))
+			lastLine = curLine
 		}
-		lastLine = curLine
 
-		if i == vm.Registers.PC {
+		if i == pc {
 			fmt.Print(yellow(" => "))
 		} else {
 			fmt.Print("    ")
 		}
 
 		fmt.Print(blue(fmt.Sprintf("%*d ", indexPadSize, i)))
-		fmt.Println(program[i].String())
+		fmt.Println(inst)
 	}
 }

@@ -5,7 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dylandreimerink/gobpfld/emulator"
+	"github.com/cilium/ebpf"
+	"github.com/dylandreimerink/mimic"
 	"github.com/go-delve/delve/pkg/locspec"
 )
 
@@ -70,7 +71,7 @@ func listBreakpointsExec(args []string) {
 		var inst string
 		switch bp := bp.(type) {
 		case *InstructionBreakpoint:
-			inst = fmt.Sprintf("%s(%d):%d\n", progName[bp.ProgramID], bp.ProgramID, bp.ProgramCounter)
+			inst = fmt.Sprintf("%s:%d\n", bp.Program.Name, bp.ProgramCounter)
 		case *FileLineBreakpoint:
 			inst = fmt.Sprintf("%s:%d\n", bp.File, bp.Line)
 		default:
@@ -119,16 +120,24 @@ func setBreakpointExec(args []string) {
 			return
 		}
 
+		var progSpec *ebpf.ProgramSpec
+
 		id, err := strconv.Atoi(parts[0])
-		if err != nil {
-			id = -1
-			for i, name := range progName {
-				if parts[0] == name {
-					id = i
+		if err == nil {
+			programs := vm.GetPrograms()
+			if len(programs) > id {
+				progSpec = programs[id]
+			}
+		} else {
+			for _, prog := range vm.GetPrograms() {
+				if parts[0] == prog.Name {
+					progSpec = prog
+					break
 				}
 			}
 		}
-		if id == -1 {
+
+		if progSpec == nil {
 			printRed("Unknown program name or index '%s', execute 'program list' to get valid options\n", parts[0])
 			return
 		}
@@ -140,24 +149,24 @@ func setBreakpointExec(args []string) {
 		}
 
 		bp = &InstructionBreakpoint{
-			ProgramID:      id,
+			Program:        progSpec,
 			ProgramCounter: inst,
 		}
 
 	case *locspec.LineLocationSpec:
-		line := getCurBTFLine()
-		if line == nil {
+		filename := getCurBTFFilename()
+		if filename == "" {
 			printRed("Unable to find current file")
 			return
 		}
 
 		bp = &FileLineBreakpoint{
-			File: line.FileName,
+			File: filename,
 			Line: spec.Line,
 		}
 
 	case *locspec.OffsetLocationSpec:
-		inst := vm.Registers.PC + spec.Offset
+		inst := process.Registers.PC + spec.Offset
 
 		if inst < 0 {
 			printRed("Instruction number can't be negative\n")
@@ -165,7 +174,7 @@ func setBreakpointExec(args []string) {
 		}
 
 		bp = &InstructionBreakpoint{
-			ProgramID:      vm.Registers.PI,
+			Program:        process.Program,
 			ProgramCounter: inst,
 		}
 
@@ -226,7 +235,7 @@ func disableBreakpointExec(args []string) {
 }
 
 type Breakpoint interface {
-	ShouldBreak(vm *emulator.VM) bool
+	ShouldBreak(process *mimic.Process) bool
 	Enabled() bool
 	Enable()
 	Disable()
@@ -251,16 +260,16 @@ func (ab *abstractBreakpoint) Disable() {
 // InstructionBreakpoint breaks only on an exact PI + PC combo
 type InstructionBreakpoint struct {
 	abstractBreakpoint
-	ProgramID      int
+	Program        *ebpf.ProgramSpec
 	ProgramCounter int
 }
 
-func (ib *InstructionBreakpoint) ShouldBreak(vm *emulator.VM) bool {
+func (ib *InstructionBreakpoint) ShouldBreak(process *mimic.Process) bool {
 	if !ib.enabled {
 		return false
 	}
 
-	return vm.Registers.PI == ib.ProgramID && vm.Registers.PC == ib.ProgramCounter
+	return process.Program.Name == ib.Program.Name && process.Registers.PC == ib.ProgramCounter
 }
 
 // FileLineBreakpoint breaks when on a specific file or line, no matter the program
@@ -270,17 +279,17 @@ type FileLineBreakpoint struct {
 	Line int
 }
 
-func (fl *FileLineBreakpoint) ShouldBreak(vm *emulator.VM) bool {
+func (fl *FileLineBreakpoint) ShouldBreak(process *mimic.Process) bool {
 	if !fl.enabled {
 		return false
 	}
 
-	line := getCurBTFLine()
-	if line == nil {
+	file := getCurBTFFilename()
+	if file == "" {
 		return false
 	}
 
-	return line.FileName == fl.File && line.LineNumber == uint32(fl.Line)
+	return file == fl.File && getCurBTFLineNumber() == fl.Line
 }
 
 // // FileFuncBreakpoint breaks when entering a specific function in a specific line

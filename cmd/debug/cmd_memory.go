@@ -2,147 +2,158 @@ package debug
 
 import (
 	"fmt"
+	"math"
+	"strconv"
 
-	"github.com/dylandreimerink/gobpfld/emulator"
+	"github.com/dylandreimerink/mimic"
 )
 
 var cmdMemory = Command{
 	Name:    "memory",
 	Aliases: []string{"mem"},
 	Summary: "Show the contents of memory",
-	Exec:    listMemoryExec,
+	Subcommands: []Command{
+		{
+			Name:    "list",
+			Aliases: []string{"ls"},
+			Summary: "List all memory objects and their addresses",
+			Exec:    listMemoryExec,
+		},
+		{
+			Name:    "read",
+			Summary: "Read the contents of a specific virtual address",
+			Args: []CmdArg{{
+				Name:     "memory block name|memory address",
+				Required: true,
+			}},
+			Exec: readMemoryExec,
+			// TODO add second argument, allowing the user to specify a range of memory to inspect
+		},
+		{
+			Name:    "read-all",
+			Summary: "Read and show the whole contents of addressable memory",
+			Exec:    readAllMemoryExec,
+		},
+	},
 }
 
 func listMemoryExec(args []string) {
-	auxMem := make([]emulator.Memory, 0)
+	memoryEntries := vm.MemoryController.GetAllEntries()
 
-	// Add all pointers in registers to aux memory
-	for _, r := range []emulator.RegisterValue{
-		vm.Registers.R0,
-		vm.Registers.R1,
-		vm.Registers.R2,
-		vm.Registers.R3,
-		vm.Registers.R4,
-		vm.Registers.R5,
-		vm.Registers.R6,
-		vm.Registers.R7,
-		vm.Registers.R8,
-		vm.Registers.R9,
-	} {
-		ptr, ok := r.(*emulator.MemoryPtr)
-		if !ok {
+	for _, entry := range memoryEntries {
+		fmt.Print(blue(fmt.Sprintf("[0x%08X - 0x%08X]", entry.Addr, entry.Addr+entry.Size)))
+		fmt.Printf("(%s) -> (%T)(%p)\n", entry.Name, entry.Object, entry.Object)
+	}
+}
+
+func readMemoryExec(args []string) {
+	if len(args) < 1 {
+		printRed("missing required argument 'memory block name|memory address'\n")
+		return
+	}
+
+	var (
+		entry  mimic.MemoryEntry
+		offset = uint32(math.MaxUint32)
+	)
+
+	if num, err := strconv.ParseInt(args[0], 0, 64); err == nil {
+		fmt.Println(num)
+		var found bool
+		entry, offset, found = process.VM.MemoryController.GetEntry(uint32(num))
+		if !found {
+			printRed("unable to find memory entry for '%s'\n", args[0])
+			return
+		}
+	} else {
+		memoryEntries := vm.MemoryController.GetAllEntries()
+
+		for _, e := range memoryEntries {
+			if e.Name == args[0] {
+				entry = e
+				break
+			}
+		}
+	}
+
+	if entry.Object == nil {
+		printRed("unable to find memory entry for '%s'\n", args[0])
+		return
+	}
+
+	fmt.Printf("%s:\n", green(entry.Name))
+	fmt.Print(blue(fmt.Sprintf("0x%08X ", entry.Addr)))
+
+	// If obj implements stringer, print the string
+	if str, ok := entry.Object.(fmt.Stringer); ok {
+		fmt.Println(str)
+		return
+	}
+
+	if vmMem, ok := entry.Object.(mimic.VMMem); ok {
+		mem := make([]byte, entry.Size)
+		err := vmMem.Read(0, mem)
+		if err != nil {
+			printRed("%s\n", err)
+			return
+		}
+
+		for j := 0; j < len(mem); j++ {
+			// Color 8 bytes of the offset green
+			if j >= int(offset) && j < int(offset)+8 {
+				fmt.Print(green(fmt.Sprintf("%02X ", mem[j])))
+			} else {
+				fmt.Printf("%02X ", mem[j])
+			}
+
+			if j%16 == 15 {
+				fmt.Printf("\n%s ", blue(fmt.Sprintf("0x%08X", entry.Addr+uint32(j))))
+			} else if j%8 == 7 {
+				fmt.Print(" ")
+			}
+		}
+		fmt.Print("\n\n")
+		return
+	}
+
+	// Not a stringer, not VMMem, just print the type and pointer
+	fmt.Printf("-> (%T)(%p)\n\n", entry.Object, entry.Object)
+}
+
+func readAllMemoryExec(args []string) {
+	memoryEntries := vm.MemoryController.GetAllEntries()
+
+	for _, entry := range memoryEntries {
+		fmt.Printf("%s:\n", green(entry.Name))
+		fmt.Print(blue(fmt.Sprintf("0x%08X ", entry.Addr)))
+
+		// If obj implements stringer, print the string
+		if str, ok := entry.Object.(fmt.Stringer); ok {
+			fmt.Println(str)
 			continue
 		}
 
-		exists := false
-		for _, m := range auxMem {
-			if m == ptr.Memory {
-				exists = true
-				break
-			}
-		}
-		if !exists {
-			auxMem = append(auxMem, ptr.Memory)
-		}
-	}
-
-	loopValueMem := func(valMem *emulator.ValueMemory, print func(val emulator.RegisterValue, index, size int)) {
-		var lastVal emulator.RegisterValue
-		for i, val := range valMem.Mapping {
-			if val == lastVal || val == nil {
-				continue
+		if vmMem, ok := entry.Object.(mimic.VMMem); ok {
+			mem := make([]byte, entry.Size)
+			err := vmMem.Read(0, mem)
+			if err != nil {
+				printRed("%s\n", err)
+				return
 			}
 
-			switch val := val.(type) {
-			case *emulator.MemoryPtr:
-				exists := false
-				for _, m := range auxMem {
-					if m == val.Memory {
-						exists = true
-						break
-					}
-				}
-				if !exists {
-					auxMem = append(auxMem, val.Memory)
-				}
-			}
-
-			size := 0
-			for j := i; j < len(valMem.Mapping); j++ {
-				if valMem.Mapping[j] == val {
-					size++
-					continue
-				}
-				break
-			}
-
-			print(val, i, size)
-			lastVal = val
-		}
-	}
-
-	for sf, valMem := range vm.StackFrames {
-		first := true
-		loopValueMem(&vm.StackFrames[sf], func(val emulator.RegisterValue, i, size int) {
-			if first {
-				fmt.Printf("fp%d:\n", sf)
-				first = false
-			}
-			fmt.Printf(
-				"%s %s = %s\n",
-				blue(fmt.Sprintf(
-					"fp%d-%-3d",
-					sf,
-					len(valMem.Mapping)-i,
-				)),
-				green(fmt.Sprintf("(u%d)", size*8)),
-				yellow(val.String()),
-			)
-		})
-		if !first {
-			fmt.Println()
-		}
-	}
-
-	for i := 0; i < len(auxMem); i++ {
-		mem := auxMem[i]
-
-		switch mem := mem.(type) {
-		case *emulator.ValueMemory:
-			first := true
-
-			loopValueMem(mem, func(val emulator.RegisterValue, index, size int) {
-				if first {
-					fmt.Printf("%s:\n", mem.Name())
-					first = false
-				}
-				fmt.Printf(
-					"%s %s = %s\n",
-					blue(fmt.Sprintf(
-						"%s%+d",
-						mem.Name(),
-						index,
-					)),
-					green(fmt.Sprintf("(u%d)", size*8)),
-					yellow(val.String()),
-				)
-			})
-			if !first {
-				fmt.Println()
-			}
-
-		case *emulator.ByteMemory:
-			fmt.Printf("%s:\n", mem.Name())
-			fmt.Print(blue("0000 "))
-			for j := 0; j < mem.Size(); j++ {
-				fmt.Printf("%02X ", mem.Backing[j])
+			for j := 0; j < len(mem); j++ {
+				fmt.Printf("%02X ", mem[j])
 				if j%16 == 15 {
-					fmt.Printf("\n%s ", blue(fmt.Sprintf("%04X", j+1)))
+					fmt.Printf("\n%s ", blue(fmt.Sprintf("0x%08X", entry.Addr+uint32(j))))
 				} else if j%8 == 7 {
 					fmt.Print(" ")
 				}
 			}
 			fmt.Print("\n\n")
+			continue
 		}
+
+		// Not a stringer, not VMMem, just print the type and pointer
+		fmt.Printf("-> (%T)(%p)\n\n", entry.Object, entry.Object)
 	}
 }
