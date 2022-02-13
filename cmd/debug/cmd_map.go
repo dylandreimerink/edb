@@ -185,7 +185,7 @@ func mapGetExec(args []string) {
 			vStr = yellow(fmt.Sprintf("%0*X", vs, vVal))
 
 			switch m.GetSpec().Type {
-			case ebpf.ArrayOfMaps, ebpf.HashOfMaps:
+			case ebpf.ArrayOfMaps, ebpf.HashOfMaps, ebpf.ProgramArray:
 				// For map in map types, we know that the values should be pointers to maps, so attempt to find
 				// and display them.
 				addr := mimic.GetNativeEndianness().Uint32(vVal)
@@ -193,6 +193,7 @@ func mapGetExec(args []string) {
 				if found {
 					vStr = fmt.Sprintf("%s -> <%s>", vStr, green(entry.Name))
 				}
+
 			default:
 				// TODO format the bytes using BTF type
 			}
@@ -249,7 +250,7 @@ func mapReadAllExec(args []string) {
 				vStr = yellow(fmt.Sprintf("%0*X", vs, vVal))
 
 				switch m.GetSpec().Type {
-				case ebpf.ArrayOfMaps, ebpf.HashOfMaps:
+				case ebpf.ArrayOfMaps, ebpf.HashOfMaps, ebpf.ProgramArray:
 					// For map in map types, we know that the values should be pointers to maps, so attempt to find
 					// and display them.
 					addr := mimic.GetNativeEndianness().Uint32(vVal)
@@ -326,6 +327,23 @@ func mapSetExec(args []string) {
 
 		vv = make([]byte, 4)
 		mimic.GetNativeEndianness().PutUint32(vv, entry.Addr)
+
+	case ebpf.ProgramArray:
+		for _, prog := range vm.GetPrograms() {
+			if prog.Name != args[2] {
+				continue
+			}
+
+			entry, found := vm.MemoryController.GetEntryByObject(prog)
+			if !found {
+				printRed("Error can't memory entry for program '%s'\n", args[2])
+				return
+			}
+
+			vv = make([]byte, 4)
+			mimic.GetNativeEndianness().PutUint32(vv, entry.Addr)
+			break
+		}
 
 	default:
 		vv, err = valueFromString(args[2], int(valueSize))

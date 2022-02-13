@@ -29,6 +29,7 @@ func DebugCmd() *cobra.Command {
 		Use:   "debug",
 		Short: "debug starts an interactive debug session",
 		Run: func(cmd *cobra.Command, args []string) {
+			vmEmulator = mimic.NewLinuxEmulator()
 			vm = mimic.NewVM(mimic.VMOptEmulator(vmEmulator))
 
 			if macroPath != "" {

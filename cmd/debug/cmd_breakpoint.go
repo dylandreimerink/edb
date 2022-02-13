@@ -179,11 +179,11 @@ func setBreakpointExec(args []string) {
 		}
 
 	case *locspec.NormalLocationSpec:
-		printRed("Unsupported locspec type '%T'", spec)
+		printRed("Unsupported locspec type '%T'\n", spec)
 		return
 
 	default:
-		printRed("Unsupported locspec type '%T'", spec)
+		printRed("Unsupported locspec type '%T'\n", spec)
 		return
 	}
 
