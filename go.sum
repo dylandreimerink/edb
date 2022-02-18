@@ -109,8 +109,8 @@ github.com/dylandreimerink/ebpf v0.8.1-0.20220213140259-64386bac261c h1:YMSIuwoB
 github.com/dylandreimerink/ebpf v0.8.1-0.20220213140259-64386bac261c/go.mod h1:f5zLIM0FSNuAkSyLAN7X+Hy6yznlF1mNiWUMfxMtrgk=
 github.com/dylandreimerink/gopacket v1.1.20-0.20220126223506-0d3623bffc1f h1:bFrU1hXZFhi71fcUwZ6uh1mjh1YmBYFF7NfYdvXFnI8=
 github.com/dylandreimerink/gopacket v1.1.20-0.20220126223506-0d3623bffc1f/go.mod h1:riddUzxTSBpJXk3qBHtYr4qOhFhT6k/1c0E3qkQjQpA=
-github.com/dylandreimerink/mimic v0.0.2 h1:wMDyl3YidNA+2u50+lLSOxApjnVq3A5/MC9JTn21hIQ=
-github.com/dylandreimerink/mimic v0.0.2/go.mod h1:kLG3A/HsjB5mJsMc87pwwrxF1g0U1H3mjviYjf50uoM=
+github.com/dylandreimerink/mimic v0.0.3 h1:JmwY74Ft04GAYrYznY9UcFekSNX+uQtqSKsCZtp157I=
+github.com/dylandreimerink/mimic v0.0.3/go.mod h1:0l4X98hvpiBXp0+AvkYyLYm6q499F19ZtAsqNpbw36s=
 github.com/envoyproxy/go-control-plane v0.9.0/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
 github.com/envoyproxy/go-control-plane v0.9.1-0.20191026205805-5f8ba28d4473/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
 github.com/envoyproxy/go-control-plane v0.9.4/go.mod h1:6rpuAdCZL397s3pYoYcLgu1mIlRU8Am5FuJP05cCM98=

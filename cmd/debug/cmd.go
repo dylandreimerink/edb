@@ -187,6 +187,12 @@ func startProcess() error {
 		return err
 	}
 
+	// TODO make the current CPU ID configurable
+	err = process.SetCPUID(0)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

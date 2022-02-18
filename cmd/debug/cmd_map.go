@@ -97,18 +97,18 @@ var cmdMap = Command{
 		// 		},
 		// 	},
 		// },
-		// {
-		// 	Name:    "pop",
-		// 	Aliases: []string{"dequeue"},
-		// 	Summary: "Pop/dequeue a value from the map, this shows and deletes the value",
-		// 	Exec:    mapPopExec,
-		// 	Args: []CmdArg{
-		// 		{
-		// 			Name:     "map name",
-		// 			Required: true,
-		// 		},
-		// 	},
-		// },
+		{
+			Name:    "pop",
+			Aliases: []string{"dequeue"},
+			Summary: "Pop/dequeue a value from the map, this shows and deletes the value",
+			Exec:    mapPopExec,
+			Args: []CmdArg{
+				{
+					Name:     "map name",
+					Required: true,
+				},
+			},
+		},
 	},
 }
 
@@ -154,7 +154,7 @@ func mapGetExec(args []string) {
 		return
 	}
 
-	valPtr, err := m.Lookup(kv)
+	valPtr, err := m.Lookup(kv, 0)
 	if err != nil {
 		printRed("Error lookup map: %s\n", err)
 		return
@@ -219,10 +219,11 @@ func mapReadAllExec(args []string) {
 	spec := m.GetSpec()
 	ks := int(spec.KeySize)
 	vs := int(spec.ValueSize)
-	keys := m.Keys()
+	// TODO show values for all CPU indices
+	keys := m.Keys(0)
 	for i := 0; i < len(keys)/ks; i++ {
 		k := keys[i*ks : (i+1)*ks]
-		vPtr, err := m.Lookup(k)
+		vPtr, err := m.Lookup(k, 0)
 		if err != nil {
 			printRed("Error while looking up key '%v': %s\n", k, err)
 			return
@@ -353,7 +354,7 @@ func mapSetExec(args []string) {
 		}
 	}
 
-	err = mu.Update(kv, vv, 0)
+	err = mu.Update(kv, vv, 0, 0)
 	if err != nil {
 		printRed("Error updating map: %s\n", err)
 		return
@@ -437,59 +438,53 @@ func mapDelExec(args []string) {
 // 	fmt.Println("Map value written")
 // }
 
-// func mapPopExec(args []string) {
-// 	if len(args) < 1 {
-// 		printRed("Missing required argument 'map name'\n")
-// 		return
-// 	}
+func mapPopExec(args []string) {
+	if len(args) < 1 {
+		printRed("Missing required argument 'map name'\n")
+		return
+	}
 
-// 	name := args[0]
-// 	m, err := nameToMap(name)
-// 	if err != nil {
-// 		printRed("%s\n", err)
-// 		return
-// 	}
+	name := args[0]
+	m, err := nameToMap(name)
+	if err != nil {
+		printRed("%s\n", err)
+		return
+	}
 
-// 	mt := m.GetType()
-// 	vs := int(m.GetDef().ValueSize)
+	popper, ok := m.(mimic.LinuxMapPopper)
+	if !ok {
+		printRed("Map type '%s' doesn't support the pop operation\n", m.GetSpec().Type)
+		return
+	}
 
-// 	value, err := m.Pop()
-// 	if err != nil {
-// 		printRed("Error pop map: %s\n", err)
-// 		return
-// 	}
+	// mt := m.GetSpec().BTF.Value
+	vs := int(m.GetSpec().ValueSize)
 
-// 	vPtr, ok := value.(emulator.PointerValue)
-// 	if !ok {
-// 		if _, ok := value.(*emulator.IMMValue); ok && value.Value() == 0 {
-// 			printRed("Map doesn't contain a value for the given key\n")
-// 			return
-// 		}
+	value, err := popper.Pop(0)
+	if err != nil {
+		printRed("Error pop map: %s\n", err)
+		return
+	}
+	if len(value) == 0 {
+		fmt.Println("map is empty")
+		return
+	}
 
-// 		printRed("Error map value of type '%T' is not a emulator.PointerValue\n", value)
-// 		return
-// 	}
-// 	vVal, err := vPtr.ReadRange(0, vs)
-// 	if err != nil {
-// 		printRed("Error read range key: %s\n", err)
-// 		return
-// 	}
+	vStr := fmt.Sprintf("%0*X", vs, value)
 
-// 	vStr := fmt.Sprintf("%0*X", vs, vVal)
+	// if bfmt, ok := mt.Value.(gobpfld.BTFValueFormater); ok {
+	// 	var vw strings.Builder
+	// 	_, err = bfmt.FormatValue(value, &vw, true)
+	// 	if err != nil {
+	// 		// TODO just fall back to showing bytes if we have formatting errors.
+	// 		printRed("Error while formatting value: %s\n", err)
+	// 		return
+	// 	}
+	// 	vStr = vw.String()
+	// }
 
-// 	if bfmt, ok := mt.Value.(gobpfld.BTFValueFormater); ok {
-// 		var vw strings.Builder
-// 		_, err = bfmt.FormatValue(vVal, &vw, true)
-// 		if err != nil {
-// 			// TODO just fall back to showing bytes if we have formatting errors.
-// 			printRed("Error while formatting value: %s\n", err)
-// 			return
-// 		}
-// 		vStr = vw.String()
-// 	}
-
-// 	fmt.Printf("%s\n", yellow(vStr))
-// }
+	fmt.Printf("%s\n", yellow(vStr))
+}
 
 func nameToMap(name string) (mimic.LinuxMap, error) {
 	m, found := vmEmulator.Maps[name]

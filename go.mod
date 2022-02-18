@@ -9,7 +9,7 @@ replace github.com/google/gopacket => github.com/dylandreimerink/gopacket v1.1.2
 require (
 	github.com/c-bata/go-prompt v0.2.6
 	github.com/cilium/ebpf v0.8.0
-	github.com/dylandreimerink/mimic v0.0.2
+	github.com/dylandreimerink/mimic v0.0.3
 	github.com/go-delve/delve v1.8.0
 	github.com/google/gopacket v0.0.0-00010101000000-000000000000
 	github.com/lithammer/fuzzysearch v1.1.3

@@ -42,6 +42,13 @@ func continueAllExec(args []string) {
 					break
 				}
 
+				// TODO make the current CPU ID configurable
+				err = process.SetCPUID(0)
+				if err != nil {
+					printRed("%s\n", err)
+					break
+				}
+
 				continue
 			}
 
