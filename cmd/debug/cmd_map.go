@@ -81,22 +81,22 @@ var cmdMap = Command{
 				},
 			},
 		},
-		// {
-		// 	Name:    "push",
-		// 	Aliases: []string{"enqueue"},
-		// 	Summary: "Push/enqueue a value into the map",
-		// 	Exec:    mapPushExec,
-		// 	Args: []CmdArg{
-		// 		{
-		// 			Name:     "map name",
-		// 			Required: true,
-		// 		},
-		// 		{
-		// 			Name:     "value",
-		// 			Required: true,
-		// 		},
-		// 	},
-		// },
+		{
+			Name:    "push",
+			Aliases: []string{"enqueue"},
+			Summary: "Push/enqueue a value into the map",
+			Exec:    mapPushExec,
+			Args: []CmdArg{
+				{
+					Name:     "map name",
+					Required: true,
+				},
+				{
+					Name:     "value",
+					Required: true,
+				},
+			},
+		},
 		{
 			Name:    "pop",
 			Aliases: []string{"dequeue"},
@@ -403,40 +403,45 @@ func mapDelExec(args []string) {
 	fmt.Println("Map value deleted")
 }
 
-// func mapPushExec(args []string) {
-// 	if len(args) < 1 {
-// 		printRed("Missing required argument 'map name'\n")
-// 		return
-// 	}
+func mapPushExec(args []string) {
+	if len(args) < 1 {
+		printRed("Missing required argument 'map name'\n")
+		return
+	}
 
-// 	if len(args) < 2 {
-// 		printRed("Missing required argument 'value'\n")
-// 		return
-// 	}
+	if len(args) < 2 {
+		printRed("Missing required argument 'value'\n")
+		return
+	}
 
-// 	name := args[0]
-// 	m, err := nameToMap(name)
-// 	if err != nil {
-// 		printRed("%s\n", err)
-// 		return
-// 	}
+	name := args[0]
+	m, err := nameToMap(name)
+	if err != nil {
+		printRed("%s\n", err)
+		return
+	}
+	pusher, ok := m.(mimic.LinuxMapPusher)
+	if !ok {
+		printRed("Map type '%s' doesn't support the push operation\n", m.GetSpec().Type)
+		return
+	}
 
-// 	valueSize := m.GetDef().ValueSize
+	valueSize := m.GetSpec().ValueSize
 
-// 	vv, err := valueFromString(args[1], int(valueSize))
-// 	if err != nil {
-// 		printRed("Error parsing key: %s\n", err)
-// 		return
-// 	}
+	vv, err := valueFromString(args[1], int(valueSize))
+	if err != nil {
+		printRed("Error parsing key: %s\n", err)
+		return
+	}
 
-// 	err = m.Push(vv, int64(m.GetDef().ValueSize))
-// 	if err != nil {
-// 		printRed("Error updating map: %s\n", err)
-// 		return
-// 	}
+	err = pusher.Push(vv, 0)
+	if err != nil {
+		printRed("Error updating map: %s\n", err)
+		return
+	}
 
-// 	fmt.Println("Map value written")
-// }
+	fmt.Println("Map value written")
+}
 
 func mapPopExec(args []string) {
 	if len(args) < 1 {
@@ -451,26 +456,54 @@ func mapPopExec(args []string) {
 		return
 	}
 
-	popper, ok := m.(mimic.LinuxMapPopper)
-	if !ok {
-		printRed("Map type '%s' doesn't support the pop operation\n", m.GetSpec().Type)
-		return
+	var valVal []byte
+	vs := 0
+	if pea, ok := m.(*mimic.LinuxPerfEventArrayMap); ok {
+		valVal, err = pea.Pop(0)
+		if err != nil {
+			printRed("Error pop map: %s\n", err)
+			return
+		}
+		vs = len(valVal)
+
+	} else {
+		valVal = make([]byte, m.GetSpec().ValueSize)
+		popper, ok := m.(mimic.LinuxMapPopper)
+		if !ok {
+			printRed("Map type '%s' doesn't support the pop operation\n", m.GetSpec().Type)
+			return
+		}
+		vs = int(m.GetSpec().ValueSize)
+
+		valAddr, err := popper.Pop(0)
+		if err != nil {
+			printRed("Error pop map: %s\n", err)
+			return
+		}
+		if valAddr == 0 {
+			fmt.Println("map is empty")
+			return
+		}
+
+		valueEntry, off, found := vm.MemoryController.GetEntry(valAddr)
+		if !found {
+			printRed("Value addr doesn't exist in mem ctl")
+			return
+		}
+		vmmem, ok := valueEntry.Object.(mimic.VMMem)
+		if !ok {
+			printRed("Value addr points to non-vmmem")
+			return
+		}
+
+		err = vmmem.Read(off, valVal)
+		if err != nil {
+			printRed("VM-Mem read: %s", err)
+			return
+		}
 	}
 
-	// mt := m.GetSpec().BTF.Value
-	vs := int(m.GetSpec().ValueSize)
-
-	value, err := popper.Pop(0)
-	if err != nil {
-		printRed("Error pop map: %s\n", err)
-		return
-	}
-	if len(value) == 0 {
-		fmt.Println("map is empty")
-		return
-	}
-
-	vStr := fmt.Sprintf("%0*X", vs, value)
+	vStr := fmt.Sprintf("%0*X", vs, valVal)
 
 	// if bfmt, ok := mt.Value.(gobpfld.BTFValueFormater); ok {
 	// 	var vw strings.Builder
