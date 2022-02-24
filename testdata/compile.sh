@@ -7,3 +7,4 @@ clang -target bpf -Wall -O2 -g -c map-in-map.c -I/usr/include -o map-in-map
 clang -target bpf -Wall -O2 -g -c stack.c -I/usr/include -o stack
 clang -target bpf -Wall -O2 -g -c queue.c -I/usr/include -o queue
 clang -target bpf -Wall -O2 -g -c perf-event.c -I/usr/include -o perf-event
+clang -target bpf -Wall -O2 -g -c sockex1.c -I/usr/include -o sockex1

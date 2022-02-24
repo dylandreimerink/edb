@@ -82,8 +82,8 @@ func listInstructionExec(args []string) {
 		}
 
 		var curLine string
-		if inst.Line() != "" {
-			curLine = inst.Line()
+		if ctx := inst.Context(); ctx != nil && ctx.String() != "" {
+			curLine = ctx.String()
 		}
 		if curLine != lastLine && curLine != "" {
 			line := strings.TrimSpace(curLine)
