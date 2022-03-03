@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/dylandreimerink/edb/cmd/capctx"
 	"github.com/dylandreimerink/edb/cmd/debug"
 	"github.com/spf13/cobra"
 )
@@ -17,6 +18,7 @@ func Execute() {
 	rootCmd.AddCommand(
 		debug.DebugCmd(),
 		pcapToCtxCommand,
+		capctx.Command(),
 	)
 
 	if err := rootCmd.Execute(); err != nil {

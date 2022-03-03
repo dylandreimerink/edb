@@ -23,7 +23,9 @@ var (
 )
 
 func DebugCmd() *cobra.Command {
-	var macroPath string
+	var (
+		macroPath string
+	)
 
 	debugCmd := &cobra.Command{
 		Use:   "debug",

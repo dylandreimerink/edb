@@ -115,9 +115,9 @@ func getBTFLine(spec *ebpf.ProgramSpec, instruction int) string {
 	// Walk up, until we found the nearest not empty line
 	var line string
 	for i := instruction; line == "" && i >= 0; i-- {
-		ctx := spec.Instructions[i].Context()
-		if ctx != nil {
-			line = ctx.String()
+		src := spec.Instructions[i].Source()
+		if src != nil {
+			line = src.String()
 		}
 	}
 
@@ -149,8 +149,8 @@ func getBTFFilename(spec *ebpf.ProgramSpec, instruction int) string {
 	// Walk up, until we found the nearest not empty filename
 	var filename string
 	for i := instruction; filename == "" && i >= 0; i-- {
-		ctx := spec.Instructions[i].Context()
-		if lineInfo, ok := ctx.(Filenamer); ok {
+		src := spec.Instructions[i].Source()
+		if lineInfo, ok := src.(Filenamer); ok {
 			filename = lineInfo.FileName()
 		}
 	}
@@ -182,8 +182,8 @@ func getBTFLineNumber(spec *ebpf.ProgramSpec, instruction int) int {
 
 	var lineNumber int
 	for i := instruction; lineNumber == 0 && i >= 0; i-- {
-		ctx := spec.Instructions[i].Context()
-		if lineInfo, ok := ctx.(LineNumberer); ok {
+		src := spec.Instructions[i].Source()
+		if lineInfo, ok := src.(LineNumberer); ok {
 			lineNumber = int(lineInfo.LineNumber())
 		}
 	}

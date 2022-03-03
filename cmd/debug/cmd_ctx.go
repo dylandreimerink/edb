@@ -133,7 +133,7 @@ func loadCtxExec(args []string) {
 	fmt.Printf("%d contexts were loaded\n", len(ctxs))
 
 	// If we are not in the middle of program execution, reset the VM.
-	if process.Registers.PC == 0 {
+	if process != nil && process.Registers.PC == 0 {
 		cmdReset.Exec(nil)
 	}
 }
