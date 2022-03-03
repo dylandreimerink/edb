@@ -2,25 +2,25 @@
 
 `edb` is a debugger(like gdb and dlv) for eBPF programs. Normally eBPF programs are loaded into the Linux kernel and then executed, this makes it difficult to understand what is happening or why things go wrong. For normal applications we can use gdb or dlv to inspect programs, but these don't work for the eBPF due to the way eBPF is loaded into the kernel.
 
-`edb` uses userspace eBPF emulation to run eBPF programs instead of loading them into the kernel, this allows us to debug them like any other program. Altho this method is not perfect due to possible differences between the emulator and actual Linux machines, it is better than nothing.
+`edb` uses userspace eBPF [emulation](https://github.com/dylandreimerink/mimic#mimic-ebpf-userspace-emulator) to run eBPF programs instead of loading them into the kernel, this allows us to debug them like any other program. Altho this method is not perfect due to possible differences between the emulator and actual Linux machines, it is better than nothing.
 
->**WARNING/NOTE** This project is still a work in progress, so is the emulator on which it runs. Not all eBPF programs might run inside the debugger or some features might be missing. Please take a look at the [TODO](#TODO) of this projects and the [TODO](https://github.com/dylandreimerink/gobpfld/blob/master/emulator/todo.md) of the emulator for a list of missing features.
+>**WARNING/NOTE** This project is still a work in progress, so is the emulator on which it runs. Not all eBPF programs might run inside the debugger or some features might be missing. Please take a look at the [TODO](#TODO) of this projects and the [TODO](https://github.com/dylandreimerink/mimic#features--todo) of the emulator for a list of missing features.
 
 ## Installation
 
-There are a few installation options
 ### Clone and install
+
+Currently installing the old-school is the only way to install `edb`. Using `go install` on the URL doesn't work due to our dependency on the replace directives in go.mod 
+
 ```bash
 git clone https://github.com/dylandreimerink/edb.git
 cd edb
 go install .
 ```
 
-### Install directly via go toolchain
+### Binary release
 
-**Note** This methods currently doesn't work due to the presence of a redirect directive in `go.mod` for gopacket.
-
-`go install github.com/dylandreimerink/edb@latest`
+`edb` is still in an early stage and is changing quickly, as soon as `edb` is more "stable" we hope to start releasing somewhat polished binaries at a decent interval.
 
 ## Usage
 
@@ -97,6 +97,8 @@ Sub commands:
   get ------------------------------------- Get the value of a particular key in a map
   set ------------------------------------- Set a value at a particular spot in a map
   del ------------------------------------- Delete a value from a map with the given key
+  push (Alias: enqueue) ------------------- Push/enqueue a value into the map
+  pop (Alias: dequeue) -------------------- Pop/dequeue a value from the map, this shows and deletes the value
 ```
 
 ```
@@ -183,6 +185,7 @@ Any contributions are welcome.
 - `reset-maps` command - resets the contents of the maps
 - `map export` command to export the contents of a map to a file or to a pined map with the same definition. The idea being that you could run your program and then export the output so it can be interpreted by a userspace application.
 - Optional kernel verification - It would be nice to attempt to load the program into the kernel to get the verifiers opinion of the program. The debugger might then interpret the verifier log and more clearly show or explain why the program was rejected.
+- Choice between Clang/LLVM style assembly and ebpf/asm style assembly
 - Debug xlated instructions - The verifier will in some cases changed the actual program instructions(xlated) to add additional runtime checks, by loading a program into the kernel and reading back the xlated instruction we can more closely replicate what actually happens in the kernel.
 - Profiling / tracing - This would not be accurate performance wise, but it might be informative to see which code paths get covered the most. So perhaps something more like code-coverage reporting. Another idea is to provide "calibration" data, would work something like: 1. create a BPF program with just a single instruction and benchmark how long execution of that single instruction takes on average(using the BPF test feature), 2. repeat step 1 for each instruction(in the current program or just overall) and store results in a calibration file, 3. use a calibration file (from localhost or a production setup) and apply it to our custom trace to get more realistic profiles.
 - DAP(Debug Adaptor Protocol) support for debugging from VSCode
