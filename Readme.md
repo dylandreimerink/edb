@@ -31,10 +31,12 @@ Usage:
   edb [command]
 
 Available Commands:
-  completion  Generate the autocompletion script for the specified shell
-  debug       debug starts an interactive debug session
-  help        Help about any command
-  pcap-to-ctx Convert a PCAP(packet capture) file into a context file which can be passed to a XDP eBPF program
+  capture-context Capture program contexts
+  completion      Generate the autocompletion script for the specified shell
+  debug           debug starts an interactive debug session
+  graph           Generate a control-flow graph for an eBPF program
+  help            Help about any command
+  pcap-to-ctx     Convert a PCAP(packet capture) file into a context file which can be passed to a XDP eBPF program
 
 Flags:
   -h, --help   help for edb
@@ -140,6 +142,25 @@ Sub commands:
   del ------------------------------------- Deletes a line from a macro
 ```
 
+### `edb graph`
+
+```
+This command reads the provided ELF file and creates a control-flow graph for the given program. The program is broken up into 'blocks' of code by BPF-to-BPF function calls and branching instructions. Red arrows indicate the non-branching path, green arrows indicate the branching path, yellow arrows indicate bpf-to-bpf function calls(which will return and then follow the non-branching path).
+
+If no flags are specified the command will attempt to render the graph as SVG and open it in the browser.
+
+Usage:
+  edb graph {ELF} {program name} [flags]
+
+Flags:
+  -f, --format string   The output format: dot, svg, pdf or png (default "svg")
+  -h, --help            help for graph
+  -o, --output string   output to given file path or - for stdout, instread of opening in browser
+```
+<img src="./img/graph-bpf-to-bpf.png" width="30%" /><img 
+src="./img/graph-map-in-map.png" width="30%" /><img 
+src="./img/graph-stack.png" width="30%" />
+
 ### `edb pcap-to-ctx`
 ```
 Convert a PCAP(packet capture) file into a context file which can be passed to a XDP eBPF program
@@ -168,6 +189,9 @@ Type 'help' for list of commands.
     41 2022-01-25 20:11:19.120006 +0000 UTC (xdp_md + 0)
     42 2022-01-25 20:11:19.120006 +0000 UTC (xdp_md + 0)
 ```
+
+### `edb capture-context`
+
 
 ## TODO
 
