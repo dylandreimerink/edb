@@ -1,3 +1,4 @@
 edb
 main
 dist/
+.envrc

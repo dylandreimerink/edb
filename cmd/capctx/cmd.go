@@ -16,7 +16,6 @@ import (
 	"github.com/cilium/ebpf/perf"
 	"github.com/dylandreimerink/mimic"
 	"github.com/spf13/cobra"
-	"golang.org/x/sys/unix"
 
 	_ "unsafe"
 )
@@ -485,7 +484,7 @@ func instrumentProgram(prog *ebpf.ProgramSpec) error {
 		// Load map ptr into R2
 		asm.LoadMapPtr(asm.R2, 0).WithReference(feedbackMap),
 		// Set flags to BPF_F_CURRENT_CPU
-		asm.LoadImm(asm.R3, unix.BPF_F_CURRENT_CPU, asm.DWord),
+		asm.LoadImm(asm.R3, BPF_F_CURRENT_CPU, asm.DWord),
 		// Load ptr to start of map value
 		asm.LoadMem(asm.R4, asm.R10, bufferStartPtr, asm.DWord),
 		// // Load end of buffer
@@ -634,3 +633,6 @@ func instrumentProgram(prog *ebpf.ProgramSpec) error {
 
 	return nil
 }
+
+// Copied from sys/unix
+const BPF_F_CURRENT_CPU = 0xffffffff
