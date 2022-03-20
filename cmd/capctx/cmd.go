@@ -100,7 +100,7 @@ func captureContextRun(cmd *cobra.Command, args []string) error {
 		MaxEntries: 1,
 	}
 
-	opts := &ebpf.CollectionOptions{Programs: ebpf.ProgramOptions{LogLevel: 1, LogSize: 20 * 1 << 20}}
+	opts := &ebpf.CollectionOptions{Programs: ebpf.ProgramOptions{LogLevel: 1, LogSize: 200 * 1 << 20}}
 	if flagVerifierVerbose {
 		opts.Programs.LogLevel = 2
 	}
@@ -440,7 +440,7 @@ const (
 
 func instrumentProgram(prog *ebpf.ProgramSpec) error {
 
-	newInstructions := make([]asm.Instruction, 0, len(prog.Instructions))
+	newInstructions := make(asm.Instructions, 0, len(prog.Instructions))
 
 	// Create an new entrypoint, which will perform a BPF-to-BPF call to the real entrypoint.
 	// We do this so we can use the first stack frame as memory which the main program will not touch.
@@ -514,12 +514,15 @@ func instrumentProgram(prog *ebpf.ProgramSpec) error {
 		asm.Mov.Imm(asm.R9, 0),
 	}...)
 
-	// Add labels and references so offsets will be recalculated when marshalling
+	// Make a RawInstOffset -> instruction lookup which improves performance during jump labeling
 	iter := prog.Instructions.Iterate()
 	offToInst := map[asm.RawInstructionOffset]*asm.Instruction{}
 	for iter.Next() {
 		offToInst[iter.Offset] = iter.Ins
 	}
+
+	// Also record all existing labels, at this point all symbols are function entrypoints
+	functionReferences := prog.Instructions.FunctionReferences()
 
 	iter = prog.Instructions.Iterate()
 	for iter.Next() {
@@ -542,20 +545,89 @@ func instrumentProgram(prog *ebpf.ProgramSpec) error {
 		*inst = inst.WithReference(label)
 	}
 
-	// For each helper function call
-	for _, inst := range prog.Instructions {
+	for i, inst := range prog.Instructions {
+		// If the current function is a BPF-to-BPF function entrypoint.
+		// i != 0 makes sure to skip the entrypoint
+		if functionReferences[inst.Symbol()] && i != 0 {
+			// Note: prior to calling a BPF-to-BPF function to original R1 is replaced by the previous stack frame and
+			// the original R1 is put in that stack frame.
+
+			newInstructions = append(newInstructions,
+				// Load fp0 from previous stack frame into R9.
+				// Note: using R9 has the size effect of populating it with a value so the verifier doesn't complain
+				// if we try to save it later
+				// Note: Add the symbol of the original instruction, since this is the new first instruction
+				asm.LoadMem(asm.R9, asm.R1, fpOff, asm.DWord).WithSymbol(inst.Symbol()),
+				// Store fp0 into fp
+				asm.StoreMem(asm.R10, fpOff, asm.R9, asm.DWord),
+				// Restore original R1
+				asm.LoadMem(asm.R1, asm.R1, primarySaveOff, asm.DWord),
+			)
+
+			// Strip the symbol from the original instruction
+			inst = inst.WithSymbol("")
+		}
+
+		// Instrument helper calls
 		if inst.IsBuiltinCall() {
 			fn := asm.BuiltinFunc(inst.Constant)
 
 			helperInstr := helperInstrumentation()[fn]
+
+			// Send the ID of the helper function
 			newInstructions = append(newInstructions, sendHelperID(fn)...)
+			// Pre-execution instructions(saving registers in stack and/or sending register contents)
 			newInstructions = append(newInstructions, helperInstr.pre...)
+			// The helper call itself
 			newInstructions = append(newInstructions, inst)
+			// Send results of helper call.
 			newInstructions = append(newInstructions, helperInstr.post...)
 			continue
 		}
 
+		// Propegate fp0 to next call stack frame
+		if inst.IsFunctionCall() {
+			newInstructions = append(newInstructions,
+				// Save R1 in current stack frame
+				asm.StoreMem(asm.R10, primarySaveOff, asm.R1, asm.DWord).WithSymbol(inst.Symbol()),
+				// Load fp into R1
+				asm.Mov.Reg(asm.R1, asm.R10),
+				// Call BPF-to-BPF function
+				inst.WithSymbol(""),
+			)
+
+			continue
+		}
+
 		newInstructions = append(newInstructions, inst)
+	}
+
+	iter = newInstructions.Iterate()
+	instToOffset := map[*asm.Instruction]asm.RawInstructionOffset{}
+	for iter.Next() {
+		instToOffset[iter.Ins] = iter.Offset
+	}
+	symOff, err := newInstructions.SymbolOffsets()
+	if err != nil {
+		return err
+	}
+
+	iter = newInstructions.Iterate()
+	for iter.Next() {
+		inst := iter.Ins
+
+		// Ignore non-jump ops, or "special" jump instructions
+		op := inst.OpCode.JumpOp()
+		switch op {
+		case asm.InvalidJumpOp, asm.Call, asm.Exit:
+			continue
+		}
+
+		if inst.Reference() == "" {
+			continue
+		}
+
+		inst.Offset = int16(instToOffset[&newInstructions[symOff[inst.Reference()]]]) - int16(iter.Offset) - 1
 	}
 
 	prog.Instructions = newInstructions

@@ -19,6 +19,7 @@ func Execute() {
 		debug.DebugCmd(),
 		pcapToCtxCommand,
 		capctx.Command(),
+		graphCommand(),
 	)
 
 	if err := rootCmd.Execute(); err != nil {
