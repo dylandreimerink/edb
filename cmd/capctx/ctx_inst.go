@@ -8,6 +8,10 @@ import (
 	"github.com/dylandreimerink/mimic"
 )
 
+// TODO should we make this configurable, start with 100 and allow the user to increase if they expect to need more
+// packet data?
+const maxXDPPacketSize = 100
+
 func sendCtx(progType ebpf.ProgramType) []asm.Instruction {
 	switch progType {
 	case ebpf.SocketFilter, ebpf.SchedACT, ebpf.SchedCLS, ebpf.CGroupSKB, ebpf.LWTIn, ebpf.LWTOut, ebpf.LWTXmit,
@@ -68,8 +72,8 @@ func sendCtx(progType ebpf.ProgramType) []asm.Instruction {
 			asm.Mov.Reg(asm.R9, asm.R6).WithSymbol("xdp_md_cp_cmp"),
 			asm.Add.Imm(asm.R9, 1),
 			asm.JGT.Reg(asm.R9, asm.R7, "xdp_md_cp_done"),
-			// if i > 3520: goto xdp_md_cp_done
-			asm.JGT.Imm(asm.R1, 3520, "xdp_md_cp_done"),
+			// if i > maxXDPPacketSize: goto xdp_md_cp_done
+			asm.JGT.Imm(asm.R1, maxXDPPacketSize, "xdp_md_cp_done"),
 
 			// *buf = (__u8) *cur
 			asm.LoadMem(asm.R8, asm.R6, 0, asm.Byte),

@@ -2,6 +2,7 @@ package capctx
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -9,11 +10,13 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/perf"
+	"github.com/dylandreimerink/edb/analyse"
 	"github.com/dylandreimerink/mimic"
 	"github.com/spf13/cobra"
 
@@ -120,7 +123,10 @@ func captureContextRun(cmd *cobra.Command, args []string) error {
 	for i := 0; i < 100; i++ {
 		pinDir = fmt.Sprintf("/sys/fs/bpf/edb-instrumented-%d", i)
 		_, err = os.Stat(pinDir)
-		if err == nil {
+
+		// If the path is not in use
+		var pathErr *os.PathError
+		if errors.As(err, &pathErr) && pathErr.Err == syscall.ENOENT {
 			break
 		}
 	}
@@ -179,6 +185,8 @@ func captureContextRun(cmd *cobra.Command, args []string) error {
 				i++
 
 				ctxs = append(ctxs, ctx)
+
+				fmt.Println(i, "contexts captured")
 			}
 		}
 	}()
@@ -398,21 +406,12 @@ func decodeFeedback(feedback []byte) (*mimic.CapturedContext, error) {
 }
 
 const (
-	stackSize = 256
-
-	// Offset within the current stack frame where the frame pointer to the first strack frame is stored
-	fpOff = -stackSize + 0
-	// Offset within the current stack frame which can be used to save a single variable
-	primarySaveOff = -stackSize + 8
-	// Offset within the current stack frame which can be used to save a single variable
-	secondarySaveOff = -stackSize + 16
-
 	// Offset within the first stack frame where the original context is stored
-	ctxOff = -stackSize + 0
+	ctxOff = -8
 	// Offset within the first stack frame where the feedback buffer pointer is stored
-	bufferPtr = -stackSize + 8
+	bufferPtr = -16
 	// Offset within the first stack frame where the a pointer to the start of the feedback buffer is stored
-	bufferStartPtr = -stackSize + 16
+	bufferStartPtr = -24
 )
 
 type MsgType byte
@@ -438,6 +437,24 @@ const (
 )
 
 func instrumentProgram(prog *ebpf.ProgramSpec) error {
+
+	// Create a program checker and pass it a CTX at R1(for now)
+	permChecker := analyse.NewChecker()
+	initProgState := analyse.NewProgramState(prog.Instructions)
+	initProgState.Frame().Registers[asm.R1] = analyse.RegisterState{
+		Type:    analyse.RVUnknown,
+		Precise: true,
+	}
+
+	// Check all permutations of the given initial program state, once done the permChecker should contain
+	// a "union" state per instruction which we can use when deciding which registers and stack locations to use when
+	// instrumenting the program
+	err := permChecker.Check(&initProgState, analyse.None)
+	if err != nil && err != analyse.ErrMaxInst {
+		return fmt.Errorf("check: %w", err)
+	}
+
+	entryFuncStage := permChecker.UnionStatePerFunc[prog.Instructions[0].Symbol()]
 
 	newInstructions := make(asm.Instructions, 0, len(prog.Instructions))
 
@@ -508,7 +525,12 @@ func instrumentProgram(prog *ebpf.ProgramSpec) error {
 		// This instruction prepends the main program, it stores the passed FP and stores it at the max value of the
 		// stack, normal program will use memory from bottom to top, so this should work in all but the most extreme
 		// cases.
-		asm.StoreMem(asm.R10, fpOff, asm.R2, asm.DWord).WithSymbol("instrument-main-prog-wrapper"),
+		asm.StoreMem(
+			asm.R10,
+			-int16((len(entryFuncStage.Stack.Slots)+1)*8), // Get nearest unused spot on the stack frame
+			asm.R2,
+			asm.DWord,
+		).WithSymbol("instrument-main-prog-wrapper"),
 		// Init R9 so the verifier doesn't complain when we attempt to save it.
 		asm.Mov.Imm(asm.R9, 0),
 	}...)
@@ -522,6 +544,27 @@ func instrumentProgram(prog *ebpf.ProgramSpec) error {
 
 	// Also record all existing labels, at this point all symbols are function entrypoints
 	functionReferences := prog.Instructions.FunctionReferences()
+
+	// A bpf-to-bpf function can be called from multiple funcs, but the callee can only access 1 set of offsets from the
+	// prev call frame. So for each caller, get the first free offset on the stack, take the max of all callers.
+	// All callers will use this offset when calling into the given function.
+	maxFuncOffsets := map[string]int{}
+	{
+		funcName := ""
+		for i, inst := range prog.Instructions {
+			if functionReferences[inst.Symbol()] || i == 0 {
+				funcName = inst.Symbol()
+			}
+
+			if inst.IsFunctionCall() {
+				callerMax := len(permChecker.UnionStatePerFunc[funcName].Stack.Slots)
+				curMax := maxFuncOffsets[inst.Reference()]
+				if callerMax > curMax {
+					maxFuncOffsets[inst.Reference()] = callerMax
+				}
+			}
+		}
+	}
 
 	iter = prog.Instructions.Iterate()
 	for iter.Next() {
@@ -544,7 +587,22 @@ func instrumentProgram(prog *ebpf.ProgramSpec) error {
 		*inst = inst.WithReference(label)
 	}
 
+	var (
+		fpOff          int16
+		primarySaveOff int16
+		curFunc        string
+	)
+
 	for i, inst := range prog.Instructions {
+		if functionReferences[inst.Symbol()] || i == 0 {
+			unionState := permChecker.UnionStatePerFunc[inst.Symbol()]
+
+			fpOff = -int16((len(unionState.Stack.Slots) + 1) * 8)
+			primarySaveOff = -int16((len(unionState.Stack.Slots) + 2) * 8)
+
+			curFunc = inst.Symbol()
+		}
+
 		// If the current function is a BPF-to-BPF function entrypoint.
 		// i != 0 makes sure to skip the entrypoint
 		if functionReferences[inst.Symbol()] && i != 0 {
@@ -556,11 +614,11 @@ func instrumentProgram(prog *ebpf.ProgramSpec) error {
 				// Note: using R9 has the size effect of populating it with a value so the verifier doesn't complain
 				// if we try to save it later
 				// Note: Add the symbol of the original instruction, since this is the new first instruction
-				asm.LoadMem(asm.R9, asm.R1, fpOff, asm.DWord).WithSymbol(inst.Symbol()),
+				asm.LoadMem(asm.R9, asm.R1, int16(maxFuncOffsets[curFunc]+1)*-8, asm.DWord).WithSymbol(inst.Symbol()),
 				// Store fp0 into fp
 				asm.StoreMem(asm.R10, fpOff, asm.R9, asm.DWord),
 				// Restore original R1
-				asm.LoadMem(asm.R1, asm.R1, primarySaveOff, asm.DWord),
+				asm.LoadMem(asm.R1, asm.R1, int16(maxFuncOffsets[curFunc]+2)*-8, asm.DWord),
 			)
 
 			// Strip the symbol from the original instruction
@@ -571,10 +629,10 @@ func instrumentProgram(prog *ebpf.ProgramSpec) error {
 		if inst.IsBuiltinCall() {
 			fn := asm.BuiltinFunc(inst.Constant)
 
-			helperInstr := helperInstrumentation()[fn]
+			helperInstr := helperInstrumentation(fpOff, primarySaveOff)[fn]
 
 			// Send the ID of the helper function
-			newInstructions = append(newInstructions, sendHelperID(fn)...)
+			newInstructions = append(newInstructions, sendHelperID(fn, fpOff, primarySaveOff)...)
 			// Pre-execution instructions(saving registers in stack and/or sending register contents)
 			newInstructions = append(newInstructions, helperInstr.pre...)
 			// The helper call itself
@@ -587,8 +645,8 @@ func instrumentProgram(prog *ebpf.ProgramSpec) error {
 		// Propegate fp0 to next call stack frame
 		if inst.IsFunctionCall() {
 			newInstructions = append(newInstructions,
-				// Save R1 in current stack frame
-				asm.StoreMem(asm.R10, primarySaveOff, asm.R1, asm.DWord).WithSymbol(inst.Symbol()),
+				// Save R1 in current stack frame @ primary safe offset
+				asm.StoreMem(asm.R10, int16(maxFuncOffsets[inst.Reference()]+2)*-8, asm.R1, asm.DWord).WithSymbol(inst.Symbol()),
 				// Load fp into R1
 				asm.Mov.Reg(asm.R1, asm.R10),
 				// Call BPF-to-BPF function

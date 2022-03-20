@@ -24,3 +24,8 @@ snapshot:
   name_template: "{{ incpatch .Version }}-next"
 changelog:
   skip: true
+release:
+  github:
+    owner: dylandreimerink
+    name: edb
+  draft: true 

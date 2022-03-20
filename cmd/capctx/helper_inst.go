@@ -15,7 +15,7 @@ type helperInstructions struct {
 
 var helperInstr map[asm.BuiltinFunc]helperInstructions
 
-func helperInstrumentation() map[asm.BuiltinFunc]helperInstructions {
+func helperInstrumentation(fpOff, primarySaveOff int16) map[asm.BuiltinFunc]helperInstructions {
 	if len(helperInstr) > 0 {
 		return helperInstr
 	}
@@ -25,14 +25,66 @@ func helperInstrumentation() map[asm.BuiltinFunc]helperInstructions {
 		var inst helperInstructions
 
 		// Send all input params
-		inst.pre = sendRInScalars(len(helper.params))
+		inst.pre = sendRInScalars(len(helper.params), fpOff, primarySaveOff)
 
 		// Send return value if not void
 		if helper.retType != "void" {
-			inst.post = sendROutScalar(asm.R0)
+			inst.post = sendROutScalar(asm.R0, fpOff)
 		}
 
 		helperInstr[fn] = inst
+	}
+
+	customInstr := map[asm.BuiltinFunc]helperInstructions{
+		asm.FnProbeRead:       singleDataReturnInstr(asm.R1, asm.R2, defaultMaxSize, fpOff, primarySaveOff),
+		asm.FnGetCurrentComm:  singleDataReturnInstr(asm.R1, asm.R2, defaultMaxSize, fpOff, primarySaveOff),
+		asm.FnSkbGetTunnelKey: singleDataReturnInstr(asm.R2, asm.R3, defaultMaxSize, fpOff, primarySaveOff),
+		asm.FnSkbLoadBytes:    singleDataReturnInstr(asm.R3, asm.R4, defaultMaxSize, fpOff, primarySaveOff),
+		asm.FnSkbGetTunnelOpt: singleDataReturnInstr(asm.R2, asm.R3, defaultMaxSize, fpOff, primarySaveOff),
+		// TODO asm.FnGetCurrentTask
+		asm.FnProbeReadStr:         singleDataReturnInstr(asm.R1, asm.R2, defaultMaxSize, fpOff, primarySaveOff),
+		asm.FnPerfEventReadValue:   singleDataReturnInstr(asm.R3, asm.R4, defaultMaxSize, fpOff, primarySaveOff),
+		asm.FnPerfProgReadValue:    singleDataReturnInstr(asm.R2, asm.R3, defaultMaxSize, fpOff, primarySaveOff),
+		asm.FnGetStack:             singleDataReturnInstr(asm.R2, asm.R3, defaultMaxSize, fpOff, primarySaveOff),
+		asm.FnSkbLoadBytesRelative: singleDataReturnInstr(asm.R3, asm.R4, defaultMaxSize, fpOff, primarySaveOff),
+		asm.FnFibLookup:            singleDataReturnInstr(asm.R2, asm.R3, defaultMaxSize, fpOff, primarySaveOff),
+		asm.FnSkLookupTcp:          singleDataReturnInstr(asm.R2, asm.R3, defaultMaxSize, fpOff, primarySaveOff),
+		asm.FnSkLookupUdp:          singleDataReturnInstr(asm.R2, asm.R3, defaultMaxSize, fpOff, primarySaveOff),
+		// TODO asm.FnSkRelease
+		// TODO asm.FnSkFullsock
+		// TODO asm.FnSkTcpSock
+		// TODO asm.FnSkbEcnSetCe
+		// TODO asm.FnGetListenerSock
+		// TODO asm.FnSkcLookupTcp
+		asm.FnSysctlGetName:         singleDataReturnInstr(asm.R2, asm.R3, defaultMaxSize, fpOff, primarySaveOff),
+		asm.FnSysctlGetCurrentValue: singleDataReturnInstr(asm.R2, asm.R3, defaultMaxSize, fpOff, primarySaveOff),
+		asm.FnSysctlGetNewValue:     singleDataReturnInstr(asm.R2, asm.R3, defaultMaxSize, fpOff, primarySaveOff),
+		asm.FnProbeReadUser:         singleDataReturnInstr(asm.R1, asm.R2, defaultMaxSize, fpOff, primarySaveOff),
+		asm.FnProbeReadKernel:       singleDataReturnInstr(asm.R1, asm.R2, defaultMaxSize, fpOff, primarySaveOff),
+		asm.FnProbeReadUserStr:      singleDataReturnInstr(asm.R1, asm.R2, defaultMaxSize, fpOff, primarySaveOff),
+		asm.FnProbeReadKernelStr:    singleDataReturnInstr(asm.R1, asm.R2, defaultMaxSize, fpOff, primarySaveOff),
+		asm.FnReadBranchRecords:     singleDataReturnInstr(asm.R2, asm.R3, defaultMaxSize, fpOff, primarySaveOff),
+		asm.FnGetNsCurrentPidTgid:   singleDataReturnInstr(asm.R3, asm.R4, defaultMaxSize, fpOff, primarySaveOff),
+		// TODO asm.FnSkcToTcp6Sock
+		// TODO asm.FnSkcToTcpSock
+		// TODO asm.FnSkcToTcpTimewaitSock
+		// TODO asm.FnSkcToTcpRequestSock
+		// TODO asm.FnSkcToUdp6Sock
+		asm.FnGetTaskStack: singleDataReturnInstr(asm.R2, asm.R3, defaultMaxSize, fpOff, primarySaveOff),
+		asm.FnLoadHdrOpt:   singleDataReturnInstr(asm.R2, asm.R3, defaultMaxSize, fpOff, primarySaveOff),
+		asm.FnDPath:        singleDataReturnInstr(asm.R2, asm.R3, defaultMaxSize, fpOff, primarySaveOff),
+		asm.FnCopyFromUser: singleDataReturnInstr(asm.R1, asm.R2, defaultMaxSize, fpOff, primarySaveOff),
+		// TODO asm.FnPerCpuPtr
+		// TODO asm.FnThisCpuPtr
+		// TODO asm.FnGetCurrentTaskBtf
+		asm.FnImaInodeHash: singleDataReturnInstr(asm.R2, asm.R3, defaultMaxSize, fpOff, primarySaveOff),
+		// TODO asm.FnSockFromFile
+		asm.FnSnprintf: singleDataReturnInstr(asm.R1, asm.R2, defaultMaxSize, fpOff, primarySaveOff),
+		// TODO asm.FnTaskPtRegs
+		// bpf_get_branch_snapshot
+		asm.BuiltinFunc(176): singleDataReturnInstr(asm.R1, asm.R2, defaultMaxSize, fpOff, primarySaveOff),
+		// TODO bpf_get_func_arg
+		// TODO bpf_get_func_ret
 	}
 
 	for k, v := range customInstr {
@@ -47,64 +99,12 @@ func helperInstrumentation() map[asm.BuiltinFunc]helperInstructions {
 
 const defaultMaxSize = 128
 
-var customInstr = map[asm.BuiltinFunc]helperInstructions{
-	asm.FnProbeRead:       singleDataReturnInstr(asm.R1, asm.R2, defaultMaxSize),
-	asm.FnGetCurrentComm:  singleDataReturnInstr(asm.R1, asm.R2, defaultMaxSize),
-	asm.FnSkbGetTunnelKey: singleDataReturnInstr(asm.R2, asm.R3, defaultMaxSize),
-	asm.FnSkbLoadBytes:    singleDataReturnInstr(asm.R3, asm.R4, defaultMaxSize),
-	asm.FnSkbGetTunnelOpt: singleDataReturnInstr(asm.R2, asm.R3, defaultMaxSize),
-	// TODO asm.FnGetCurrentTask
-	asm.FnProbeReadStr:         singleDataReturnInstr(asm.R1, asm.R2, defaultMaxSize),
-	asm.FnPerfEventReadValue:   singleDataReturnInstr(asm.R3, asm.R4, defaultMaxSize),
-	asm.FnPerfProgReadValue:    singleDataReturnInstr(asm.R2, asm.R3, defaultMaxSize),
-	asm.FnGetStack:             singleDataReturnInstr(asm.R2, asm.R3, defaultMaxSize),
-	asm.FnSkbLoadBytesRelative: singleDataReturnInstr(asm.R3, asm.R4, defaultMaxSize),
-	asm.FnFibLookup:            singleDataReturnInstr(asm.R2, asm.R3, defaultMaxSize),
-	asm.FnSkLookupTcp:          singleDataReturnInstr(asm.R2, asm.R3, defaultMaxSize),
-	asm.FnSkLookupUdp:          singleDataReturnInstr(asm.R2, asm.R3, defaultMaxSize),
-	// TODO asm.FnSkRelease
-	// TODO asm.FnSkFullsock
-	// TODO asm.FnSkTcpSock
-	// TODO asm.FnSkbEcnSetCe
-	// TODO asm.FnGetListenerSock
-	// TODO asm.FnSkcLookupTcp
-	asm.FnSysctlGetName:         singleDataReturnInstr(asm.R2, asm.R3, defaultMaxSize),
-	asm.FnSysctlGetCurrentValue: singleDataReturnInstr(asm.R2, asm.R3, defaultMaxSize),
-	asm.FnSysctlGetNewValue:     singleDataReturnInstr(asm.R2, asm.R3, defaultMaxSize),
-	asm.FnProbeReadUser:         singleDataReturnInstr(asm.R1, asm.R2, defaultMaxSize),
-	asm.FnProbeReadKernel:       singleDataReturnInstr(asm.R1, asm.R2, defaultMaxSize),
-	asm.FnProbeReadUserStr:      singleDataReturnInstr(asm.R1, asm.R2, defaultMaxSize),
-	asm.FnProbeReadKernelStr:    singleDataReturnInstr(asm.R1, asm.R2, defaultMaxSize),
-	asm.FnReadBranchRecords:     singleDataReturnInstr(asm.R2, asm.R3, defaultMaxSize),
-	asm.FnGetNsCurrentPidTgid:   singleDataReturnInstr(asm.R3, asm.R4, defaultMaxSize),
-	// TODO asm.FnSkcToTcp6Sock
-	// TODO asm.FnSkcToTcpSock
-	// TODO asm.FnSkcToTcpTimewaitSock
-	// TODO asm.FnSkcToTcpRequestSock
-	// TODO asm.FnSkcToUdp6Sock
-	asm.FnGetTaskStack: singleDataReturnInstr(asm.R2, asm.R3, defaultMaxSize),
-	asm.FnLoadHdrOpt:   singleDataReturnInstr(asm.R2, asm.R3, defaultMaxSize),
-	asm.FnDPath:        singleDataReturnInstr(asm.R2, asm.R3, defaultMaxSize),
-	asm.FnCopyFromUser: singleDataReturnInstr(asm.R1, asm.R2, defaultMaxSize),
-	// TODO asm.FnPerCpuPtr
-	// TODO asm.FnThisCpuPtr
-	// TODO asm.FnGetCurrentTaskBtf
-	asm.FnImaInodeHash: singleDataReturnInstr(asm.R2, asm.R3, defaultMaxSize),
-	// TODO asm.FnSockFromFile
-	asm.FnSnprintf: singleDataReturnInstr(asm.R1, asm.R2, defaultMaxSize),
-	// TODO asm.FnTaskPtRegs
-	// bpf_get_branch_snapshot
-	asm.BuiltinFunc(176): singleDataReturnInstr(asm.R1, asm.R2, defaultMaxSize),
-	// TODO bpf_get_func_arg
-	// TODO bpf_get_func_ret
-}
-
-func singleDataReturnInstr(ptr, size asm.Register, max uint16) helperInstructions {
+func singleDataReturnInstr(ptr, size asm.Register, max uint16, fpOff, primarySaveOff int16) helperInstructions {
 	return helperInstructions{
-		pre: saveRegs(ptr, size),
+		pre: saveRegs(primarySaveOff, ptr, size),
 		post: merge(
-			restoreRegs(ptr, size),
-			sendRoutData(ptr, size, max),
+			restoreRegs(primarySaveOff, ptr, size),
+			sendRoutData(ptr, size, max, fpOff),
 		),
 	}
 }
@@ -121,7 +121,7 @@ func merge(slices ...[]asm.Instruction) []asm.Instruction {
 	return new
 }
 
-func sendHelperID(fn asm.BuiltinFunc) []asm.Instruction {
+func sendHelperID(fn asm.BuiltinFunc, fpOff, primarySaveOff int16) []asm.Instruction {
 	return []asm.Instruction{
 		// Get fp0
 		asm.LoadMem(asm.R0, asm.R10, fpOff, asm.DWord),
@@ -142,15 +142,15 @@ func sendHelperID(fn asm.BuiltinFunc) []asm.Instruction {
 	}
 }
 
-func sendRInScalars(num int) []asm.Instruction {
+func sendRInScalars(num int, fpOff, primarySaveOff int16) []asm.Instruction {
 	insts := make([][]asm.Instruction, 0)
 	for i := asm.R1; i <= asm.Register(num); i++ {
-		insts = append(insts, sendRInScalar(i))
+		insts = append(insts, sendRInScalar(i, fpOff, primarySaveOff))
 	}
 	return merge(insts...)
 }
 
-func sendRInScalar(r asm.Register) []asm.Instruction {
+func sendRInScalar(r asm.Register, fpOff, primarySaveOff int16) []asm.Instruction {
 	// Use R0 since it will be clobbered by the helper function. use R9 since R1-R5 are inputs, but restore it
 	// afterwards.
 	return []asm.Instruction{
@@ -176,7 +176,7 @@ func sendRInScalar(r asm.Register) []asm.Instruction {
 }
 
 // save the contents of a register before a function call, which allows us to restore it afterwards
-func saveRegs(regs ...asm.Register) []asm.Instruction {
+func saveRegs(primarySaveOff int16, regs ...asm.Register) []asm.Instruction {
 	switch len(regs) {
 	case 0:
 		return nil
@@ -187,7 +187,7 @@ func saveRegs(regs ...asm.Register) []asm.Instruction {
 	case 2:
 		return []asm.Instruction{
 			asm.StoreMem(asm.R10, primarySaveOff, regs[0], asm.DWord),
-			asm.StoreMem(asm.R10, secondarySaveOff, regs[1], asm.DWord),
+			asm.StoreMem(asm.R10, primarySaveOff-8, regs[1], asm.DWord),
 		}
 	default:
 		// We don't expect to need more than 2 regs ever. Needing to save more regs requires more reserved stack space.
@@ -196,7 +196,7 @@ func saveRegs(regs ...asm.Register) []asm.Instruction {
 }
 
 // restore the contents of a register saved by the saveRegs snippet
-func restoreRegs(regs ...asm.Register) []asm.Instruction {
+func restoreRegs(primarySaveOff int16, regs ...asm.Register) []asm.Instruction {
 	switch len(regs) {
 	case 0:
 		return nil
@@ -207,7 +207,7 @@ func restoreRegs(regs ...asm.Register) []asm.Instruction {
 	case 2:
 		return []asm.Instruction{
 			asm.LoadMem(regs[0], asm.R10, primarySaveOff, asm.DWord),
-			asm.LoadMem(regs[1], asm.R10, secondarySaveOff, asm.DWord),
+			asm.LoadMem(regs[1], asm.R10, primarySaveOff-8, asm.DWord),
 		}
 	default:
 		// We don't expect to need more than 2 regs ever. Needing to save more regs requires more reserved stack space.
@@ -217,7 +217,7 @@ func restoreRegs(regs ...asm.Register) []asm.Instruction {
 
 var sendRoutDataCount = 0
 
-func sendRoutData(ptr asm.Register, size asm.Register, maxSize uint16) []asm.Instruction {
+func sendRoutData(ptr asm.Register, size asm.Register, maxSize uint16, fpOff int16) []asm.Instruction {
 	// Pick a call clobbered register which is not `ptr` or `size`
 	bufPtr := asm.R1
 	for ; bufPtr <= asm.R5; bufPtr++ {
@@ -289,7 +289,7 @@ func sendRoutData(ptr asm.Register, size asm.Register, maxSize uint16) []asm.Ins
 	}
 }
 
-func sendROutScalar(r asm.Register) []asm.Instruction {
+func sendROutScalar(r asm.Register, fpOff int16) []asm.Instruction {
 	// Similar to the R-in scalar version, but use R1 and R2, they are available since the helper call
 	// with have clobbered them
 	return []asm.Instruction{

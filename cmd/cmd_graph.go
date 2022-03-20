@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/cilium/ebpf"
@@ -166,7 +167,7 @@ func ProgramToGraph(prog *ebpf.ProgramSpec) *dot.Graph {
 		}
 
 		var label strings.Builder
-		label.WriteString("\"")
+		label.WriteString("\"Block " + strconv.Itoa(block.Index) + "\n")
 		for _, inst := range block.Block {
 			// Remove references from jump ops since they are not needed when we have edges
 			if inst.OpCode.JumpOp() != asm.InvalidJumpOp {
