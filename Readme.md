@@ -142,7 +142,7 @@ Sub commands:
   del ------------------------------------- Deletes a line from a macro
 ```
 
-### `edb graph`
+<!-- ### `edb graph` -->
 
 ```
 This command reads the provided ELF file and creates a control-flow graph for the given program. The program is broken up into 'blocks' of code by BPF-to-BPF function calls and branching instructions. Red arrows indicate the non-branching path, green arrows indicate the branching path, yellow arrows indicate bpf-to-bpf function calls(which will return and then follow the non-branching path).
