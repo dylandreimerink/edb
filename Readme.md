@@ -20,7 +20,9 @@ go install .
 
 ### Binary release
 
-`edb` is still in an early stage and is changing quickly, as soon as `edb` is more "stable" we hope to start releasing somewhat polished binaries at a decent interval.
+1. Get the latest `edb` version at https://github.com/dylandreimerink/edb/releases for your platform
+2. un-tar and place in $PATH `sudo tar -C /usr/local/bin -xzf edb_0.1.0_Linux_x86_64.tar.gz`
+3. verify install `edb --help`
 
 ## Usage
 
@@ -142,7 +144,7 @@ Sub commands:
   del ------------------------------------- Deletes a line from a macro
 ```
 
-<!-- ### `edb graph` -->
+### `edb graph`
 
 ```
 This command reads the provided ELF file and creates a control-flow graph for the given program. The program is broken up into 'blocks' of code by BPF-to-BPF function calls and branching instructions. Red arrows indicate the non-branching path, green arrows indicate the branching path, yellow arrows indicate bpf-to-bpf function calls(which will return and then follow the non-branching path).
@@ -190,7 +192,7 @@ Type 'help' for list of commands.
     42 2022-01-25 20:11:19.120006 +0000 UTC (xdp_md + 0)
 ```
 
-### `edb capture-context`
+<!-- ### `edb capture-context` -->
 
 
 ## TODO
