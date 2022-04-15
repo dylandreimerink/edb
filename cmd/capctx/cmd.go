@@ -40,6 +40,7 @@ func Command() *cobra.Command {
 	f.BoolVar(&flagInstProg, "instrumented-program", false, "Print the program instruction after instrumenting")
 	f.BoolVar(&flagVerifierLog, "verifier-log", false, "Print the verifier log")
 	f.BoolVar(&flagVerifierVerbose, "verifier-verbose", false, "If set, the verbose log is printed, not just the normal log")
+	f.BoolVar(&flagDebugAnalysis, "debug-analysis", false, "Print program analysis debug info")
 
 	return cmd
 }
@@ -49,6 +50,7 @@ var (
 	flagInstProg        bool
 	flagVerifierLog     bool
 	flagVerifierVerbose bool
+	flagDebugAnalysis   bool
 )
 
 const (
@@ -446,12 +448,25 @@ func instrumentProgram(prog *ebpf.ProgramSpec) error {
 		Precise: true,
 	}
 
+	verbosity := analyse.None
+	if flagDebugAnalysis {
+		verbosity = analyse.Verbose
+	}
+
 	// Check all permutations of the given initial program state, once done the permChecker should contain
 	// a "union" state per instruction which we can use when deciding which registers and stack locations to use when
 	// instrumenting the program
-	err := permChecker.Check(&initProgState, analyse.None)
+	err := permChecker.Check(&initProgState, verbosity)
 	if err != nil && err != analyse.ErrMaxInst {
 		return fmt.Errorf("check: %w", err)
+	}
+
+	if flagDebugAnalysis {
+		fmt.Println("Union state per func:")
+		for funcName, state := range permChecker.UnionStatePerFunc {
+			fmt.Printf("%s: %s\n", funcName, state)
+		}
+		fmt.Println()
 	}
 
 	entryFuncStage := permChecker.UnionStatePerFunc[prog.Instructions[0].Symbol()]

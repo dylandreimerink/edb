@@ -56,31 +56,8 @@ func (ps *ProgramState) Copy() ProgramState {
 	return nps
 }
 
-func (ps *ProgramState) String() string {
-	var sb strings.Builder
-
-	f := ps.Frame()
-	for r := asm.R0; r < asm.R10; r++ {
-		if f.Registers[r].Type == RVNotInit {
-			continue
-		}
-
-		sb.WriteString(r.String())
-		sb.WriteString("=")
-		sb.WriteString(f.Registers[r].String())
-		sb.WriteString(" ")
-	}
-
-	sb.WriteString(fmt.Sprintf("r10=fp%d ", f.FrameNumber))
-
-	for i, slot := range f.Stack.Slots {
-		slotStr := slot.String()
-		if slotStr != "" {
-			sb.WriteString(fmt.Sprintf("fp%d%d=%s ", f.FrameNumber, -8-(i*regSize), slotStr))
-		}
-	}
-
-	return sb.String()
+func (ps ProgramState) String() string {
+	return ps.Frame().String()
 }
 
 type FuncState struct {
@@ -101,6 +78,27 @@ func (fs *FuncState) Copy() FuncState {
 	return nfs
 }
 
+func (fs FuncState) String() string {
+	var sb strings.Builder
+
+	for r := asm.R0; r < asm.R10; r++ {
+		if fs.Registers[r].Type == RVNotInit {
+			continue
+		}
+
+		sb.WriteString(r.String())
+		sb.WriteString("=")
+		sb.WriteString(fs.Registers[r].String())
+		sb.WriteString(" ")
+	}
+
+	sb.WriteString(fmt.Sprintf("r10=fp%d ", fs.FrameNumber))
+
+	sb.WriteString(fs.Stack.String(fs.FrameNumber))
+
+	return sb.String()
+}
+
 type StackState struct {
 	Slots []StackSlot
 }
@@ -111,6 +109,75 @@ func (ss *StackState) Copy() StackState {
 	}
 	copy(nss.Slots, ss.Slots)
 	return nss
+}
+
+func (ss *StackState) String(frameNumber int) string {
+	var sb strings.Builder
+
+	for i := len(ss.Slots) - 1; i >= 0; i-- {
+		slot := ss.Slots[i]
+		slotStr := slot.String()
+		if slotStr != "" {
+			sb.WriteString(fmt.Sprintf("fp%d%d=%s ", frameNumber, -8-(i*regSize), slotStr))
+		}
+	}
+
+	return sb.String()
+}
+
+// -8 = len(ss.Slots)-1, -16 = len(ss.Slots)-2
+func (ss *StackState) Slot(off int) *StackSlot {
+	i := len(ss.Slots) + ((off + 1) / regSize) - 1
+	if i >= len(ss.Slots) {
+		return nil
+	}
+
+	// Grow stack
+	if i < 0 {
+		ss.Slots = append(make([]StackSlot, -i), ss.Slots...)
+		i = 0
+	}
+
+	return &ss.Slots[i]
+}
+
+func (ss *StackState) WriteReg(off int, size asm.Size, reg RegisterState) {
+	// If size is max and memory aligned, we will spill the register value to the stack
+	if off%regSize == 0 && size == asm.DWord {
+		slot := ss.Slot(off)
+		if slot == nil {
+			return
+		}
+
+		slot.Spilled = &reg
+		for i := 0; i < regSize; i++ {
+			slot.SlotTypes[i] = SlotTypeSpill
+		}
+
+		return
+	}
+
+	for i := off; i < off+size.Sizeof(); i++ {
+		slot := ss.Slot(i)
+		if slot == nil {
+			continue
+		}
+
+		slot.SlotTypes[-(i % regSize)] = SlotTypeMisc
+		slot.Spilled = nil
+	}
+}
+
+func (ss *StackState) WriteMisc(off, len int) {
+	for i := off; i < off+len; i++ {
+		slot := ss.Slot(i)
+		if slot == nil {
+			continue
+		}
+
+		slot.SlotTypes[-(i % regSize)] = SlotTypeMisc
+		slot.Spilled = nil
+	}
 }
 
 // size of eBPF register in bytes
@@ -131,7 +198,7 @@ type StackSlot struct {
 }
 
 func (ss StackSlot) String() string {
-	if ss.SlotTypes[regSize-1] == SlotTypeSpill {
+	if ss.SlotTypes[regSize-1] == SlotTypeSpill && ss.Spilled != nil {
 		return ss.Spilled.String()
 	}
 
@@ -258,6 +325,76 @@ func (rs *RegisterState) SubReg(r RegisterState) {
 	}
 }
 
+func (rs *RegisterState) MulIMM(i int64) {
+	if rs.Precise {
+		rs.Value = i * rs.Value
+	} else {
+		rs.MinValue = i * rs.MinValue
+		rs.MaxValue = i * rs.MaxValue
+	}
+}
+
+func (rs *RegisterState) MulReg(r RegisterState) {
+	if rs.Precise {
+		if r.Precise {
+			rs.Value = rs.Value * r.Value
+		} else {
+			rs.MinValue = rs.Value * r.MinValue
+			rs.MaxValue = rs.Value * r.MaxValue
+			rs.Precise = false
+		}
+	} else {
+		if r.Precise {
+			rs.MaxValue = rs.MaxValue * r.Value
+		} else {
+			rs.MaxValue = rs.MaxValue * r.MaxValue
+		}
+	}
+}
+
+func (rs *RegisterState) DivIMM(i int64) {
+	if i == 0 {
+		return
+	}
+
+	if rs.Precise {
+		rs.Value = rs.Value / i
+	} else {
+		rs.MinValue = rs.MinValue / i
+		rs.MaxValue = rs.MaxValue / i
+	}
+}
+
+func (rs *RegisterState) DivReg(r RegisterState) {
+	if rs.Precise {
+		if r.Precise {
+			if r.Value == 0 {
+				return
+			}
+
+			rs.Value = rs.Value / r.Value
+		} else {
+			if r.MinValue != 0 {
+				rs.MinValue = rs.Value / r.MinValue
+			}
+			if r.MaxValue != 0 {
+				rs.MaxValue = rs.Value / r.MaxValue
+			}
+			rs.Precise = false
+		}
+	} else {
+		if r.Precise {
+			if r.Value != 0 {
+				rs.MaxValue = rs.MaxValue / r.Value
+			}
+		} else {
+			if r.MaxValue != 0 {
+				rs.MaxValue = rs.MaxValue / r.MaxValue
+			}
+		}
+	}
+}
+
 func (rs *RegisterState) OrIMM(i int64) {
 	if rs.Precise {
 		rs.Value = i | rs.Value
@@ -373,6 +510,85 @@ func (rs *RegisterState) RShReg(r RegisterState) {
 	}
 }
 
+func (rs *RegisterState) Neg() {
+	if rs.Precise {
+		rs.Value = -rs.Value
+	} else {
+		tmp := rs.MinValue
+		rs.MinValue = -rs.MaxValue
+		rs.MaxValue = -tmp
+	}
+}
+
+func (rs *RegisterState) ModIMM(i int64) {
+	if i == 0 {
+		return
+	}
+
+	if rs.Precise {
+		rs.Value = rs.Value % i
+	} else {
+		rs.MinValue = rs.MinValue % i
+		rs.MaxValue = rs.MaxValue % i
+	}
+}
+
+func (rs *RegisterState) ModReg(r RegisterState) {
+	if rs.Precise {
+		if r.Precise {
+			if r.Value == 0 {
+				return
+			}
+
+			rs.Value = rs.Value % r.Value
+		} else {
+			if r.MinValue != 0 {
+				rs.MinValue = rs.Value % r.MinValue
+			}
+			if r.MaxValue != 0 {
+				rs.MaxValue = rs.Value % r.MaxValue
+			}
+			rs.Precise = false
+		}
+	} else {
+		if r.Precise {
+			if r.Value != 0 {
+				rs.MaxValue = rs.MaxValue % r.Value
+			}
+		} else {
+			if r.MaxValue != 0 {
+				rs.MaxValue = rs.MaxValue % r.MaxValue
+			}
+		}
+	}
+}
+
+func (rs *RegisterState) XorIMM(i int64) {
+	if rs.Precise {
+		rs.Value = i ^ rs.Value
+	} else {
+		rs.MaxValue = i ^ rs.MaxValue
+	}
+}
+
+func (rs *RegisterState) XorReg(r RegisterState) {
+	if rs.Precise {
+		if r.Precise {
+			rs.Value = rs.Value ^ r.Value
+		} else {
+			rs.MinValue = rs.Value ^ r.MinValue
+			rs.MaxValue = rs.Value ^ r.MaxValue
+			rs.Precise = false
+		}
+	} else {
+		if r.Precise {
+			rs.MaxValue = rs.MaxValue ^ r.Value
+		} else {
+			rs.MaxValue = rs.MaxValue ^ r.MaxValue
+		}
+	}
+}
+
 func (rs RegisterState) String() string {
 	switch rs.Type {
 	case RVNotInit:
@@ -450,18 +666,16 @@ const (
 
 // TODO this needs a better name
 type Checker struct {
-	Pending                  chan *ProgramState
-	UnionStatePerInstruction map[int]FuncState
-	UnionStatePerFunc        map[string]FuncState
+	Pending           chan *ProgramState
+	UnionStatePerFunc map[string]FuncState
 }
 
 const maxPendingPermutations = 100000
 
 func NewChecker() *Checker {
 	return &Checker{
-		Pending:                  make(chan *ProgramState, maxPendingPermutations),
-		UnionStatePerInstruction: make(map[int]FuncState),
-		UnionStatePerFunc:        make(map[string]FuncState),
+		Pending:           make(chan *ProgramState, maxPendingPermutations),
+		UnionStatePerFunc: make(map[string]FuncState),
 	}
 }
 
@@ -485,6 +699,11 @@ func (c *Checker) Check(initialState *ProgramState, logLevel CheckerLogLevel) er
 		default:
 			return true
 		}
+	}
+
+	if logLevel > None {
+		fmt.Println("Program state checker log:")
+		defer fmt.Println("")
 	}
 
 	curState.FuncName = curState.Prog[curState.InstOff].Symbol()
@@ -532,8 +751,16 @@ func (c *Checker) Check(initialState *ProgramState, logLevel CheckerLogLevel) er
 			case asm.Sub | asm.ALUOp(asm.RegSource):
 				dst.SubReg(src)
 
-			// case asm.Mul:
-			// case asm.Div:
+			case asm.Mul | asm.ALUOp(asm.ImmSource):
+				dst.MulIMM(inst.Constant)
+			case asm.Mul | asm.ALUOp(asm.RegSource):
+				dst.MulReg(src)
+
+			case asm.Div | asm.ALUOp(asm.ImmSource):
+				dst.DivIMM(inst.Constant)
+			case asm.Div | asm.ALUOp(asm.RegSource):
+				dst.DivReg(src)
+
 			case asm.Or | asm.ALUOp(asm.ImmSource):
 				dst.OrIMM(inst.Constant)
 			case asm.Or | asm.ALUOp(asm.RegSource):
@@ -549,15 +776,24 @@ func (c *Checker) Check(initialState *ProgramState, logLevel CheckerLogLevel) er
 			case asm.LSh | asm.ALUOp(asm.RegSource):
 				dst.LShReg(src)
 
-			// case asm.RSh:
 			case asm.RSh | asm.ALUOp(asm.ImmSource):
 				dst.RShIMM(inst.Constant)
 			case asm.RSh | asm.ALUOp(asm.RegSource):
 				dst.RShReg(src)
 
-			// case asm.Neg:
-			// case asm.Mod:
-			// case asm.Xor:
+			case asm.Neg:
+				dst.Neg()
+
+			case asm.Mod | asm.ALUOp(asm.ImmSource):
+				dst.ModIMM(inst.Constant)
+			case asm.Mod | asm.ALUOp(asm.RegSource):
+				dst.ModReg(src)
+
+			case asm.Xor | asm.ALUOp(asm.ImmSource):
+				dst.XorIMM(inst.Constant)
+			case asm.Xor | asm.ALUOp(asm.RegSource):
+				dst.XorReg(src)
+
 			case asm.Mov | asm.ALUOp(asm.ImmSource):
 				*dst = RegisterState{
 					Type:    RVScalar,
@@ -568,7 +804,7 @@ func (c *Checker) Check(initialState *ProgramState, logLevel CheckerLogLevel) er
 			case asm.Mov | asm.ALUOp(asm.RegSource):
 				*dst = src
 
-			// case asm.ArSh:
+			// TODO case asm.ArSh:
 			case asm.Swap, asm.Swap | asm.ALUOp(asm.RegSource):
 				// TODO implement swap for precise values
 			default:
@@ -596,7 +832,7 @@ func (c *Checker) Check(initialState *ProgramState, logLevel CheckerLogLevel) er
 					branchDst.Precise = true
 				}
 
-			// case asm.JEq | asm.JumpOp(asm.RegSource):
+			// TODO case asm.JEq | asm.JumpOp(asm.RegSource):
 			case asm.JGT | asm.JumpOp(asm.ImmSource):
 				if branchDst.Precise && branchDst.Value <= inst.Constant {
 					possible = false
@@ -646,8 +882,8 @@ func (c *Checker) Check(initialState *ProgramState, logLevel CheckerLogLevel) er
 					}
 				}
 
-			// case asm.JSet:
-			// case asm.JNE:
+			// TODO case asm.JSet:
+			// TODO case asm.JNE:
 			case asm.JNE | asm.JumpOp(asm.ImmSource):
 				if branchDst.Precise && branchDst.Value == inst.Constant {
 					possible = false
@@ -656,34 +892,71 @@ func (c *Checker) Check(initialState *ProgramState, logLevel CheckerLogLevel) er
 					nonBranchDst.Precise = true
 				}
 
-			// case asm.JSGT:
-			// case asm.JSGE:
+			// TODO case asm.JSGT:
+			// TODO case asm.JSGE:
 
 			case asm.Call:
 				if inst.IsBuiltinCall() {
-					// Merge pre-call state with all other permutations
-					preCallUnion := c.UnionStatePerInstruction[curState.InstOff]
-					mergeFuncState(&preCallUnion, *curState.Frame())
-					c.UnionStatePerInstruction[curState.InstOff] = preCallUnion
+					var (
+						buf asm.Register
+						len asm.Register
+					)
+					switch asm.BuiltinFunc(inst.Constant) {
+					case asm.FnProbeRead,
+						asm.FnGetCurrentComm,
+						asm.FnProbeReadStr,
+						asm.FnProbeReadUser,
+						asm.FnProbeReadKernel,
+						asm.FnProbeReadUserStr,
+						asm.FnProbeReadKernelStr,
+						asm.FnCopyFromUser,
+						asm.FnSnprintfBtf,
+						asm.FnSnprintf:
+						buf = asm.R1
+						len = asm.R2
+
+					case asm.FnSkbGetTunnelKey,
+						asm.FnSkbGetTunnelOpt,
+						asm.FnPerfProgReadValue,
+						asm.FnGetStack,
+						asm.FnReadBranchRecords,
+						asm.FnGetTaskStack,
+						asm.FnImaInodeHash,
+						asm.FnSysBpf:
+						buf = asm.R2
+						len = asm.R3
+
+					case asm.FnPerfEventReadValue,
+						asm.FnSkbGetXfrmState,
+						asm.FnSkLookupTcp,
+						asm.FnSkLookupUdp,
+						asm.FnSkcLookupTcp,
+						asm.FnGetNsCurrentPidTgid:
+						buf = asm.R3
+						len = asm.R4
+
+					case asm.FnGetsockopt,
+						asm.FnSkbOutput,
+						asm.FnXdpOutput:
+						buf = asm.R4
+						len = asm.R5
+					}
+					if buf != 0 && len != 0 {
+						f.Stack.WriteMisc(int(f.Registers[buf].Value), int(f.Registers[len].Value))
+					}
 
 					// Clobber R1-R5
 					for i := asm.R1; i <= asm.R5; i++ {
-						curState.Frame().Registers[i].Type = RVNotInit
+						f.Registers[i].Type = RVNotInit
 					}
 					// R0 = return value
-					curState.Frame().Registers[asm.R0] = RegisterState{
+					f.Registers[asm.R0] = RegisterState{
 						Type:     RVScalar,
 						Precise:  false,
 						MinValue: -math.MaxInt64,
 						MaxValue: math.MaxInt64,
 					}
 
-					// TODO update stack depending on pointers and sizes given to helper function
-
-					// Merge post-call state with all other permutations
-					postCallUnion := c.UnionStatePerInstruction[curState.InstOff+1]
-					mergeFuncState(&postCallUnion, *curState.Frame())
-					c.UnionStatePerInstruction[curState.InstOff+1] = postCallUnion
 				} else {
 					// BPF-to-BPF call
 
@@ -767,10 +1040,10 @@ func (c *Checker) Check(initialState *ProgramState, logLevel CheckerLogLevel) er
 					continue
 				}
 
-			// case asm.JLT:
-			// case asm.JLE:
-			// case asm.JSLT:
-			// case asm.JSLE:
+			// TODO case asm.JLT:
+			// TODO case asm.JLE:
+			// TODO case asm.JSLT:
+			// TODO case asm.JSLE:
 
 			default:
 				return fmt.Errorf("unimplemented Jmp inst: %v", inst)
@@ -868,9 +1141,9 @@ func (c *Checker) Check(initialState *ProgramState, logLevel CheckerLogLevel) er
 					}
 				}
 
-			// case asm.OpCode(asm.AbsMode):
+			// TODO case asm.OpCode(asm.AbsMode):
 			// 	// Load from sk_buff @ abs pos
-			// case asm.OpCode(asm.IndMode):
+			// TODO case asm.OpCode(asm.IndMode):
 			// 	// Load from sk_buff @ rel pos
 			default:
 				return fmt.Errorf("unimplemented Ld inst: %v", inst)
@@ -878,9 +1151,9 @@ func (c *Checker) Check(initialState *ProgramState, logLevel CheckerLogLevel) er
 
 		case asm.StClass:
 			switch inst.OpCode & 0xF0 {
-			// case asm.OpCode(asm.AbsMode):
+			// TODO case asm.OpCode(asm.AbsMode):
 			// 	// Store to sk_buff @ abs pos
-			// case asm.OpCode(asm.IndMode):
+			// TODO case asm.OpCode(asm.IndMode):
 			// 	//  Store to  sk_buff @ rel pos
 			default:
 				return fmt.Errorf("unimplemented St inst: %v", inst)
@@ -894,38 +1167,9 @@ func (c *Checker) Check(initialState *ProgramState, logLevel CheckerLogLevel) er
 			case asm.OpCode(asm.MemMode):
 				// Store to stack
 
-				off := dst.Value + int64(inst.Offset)
-				slotIdx := int(0 - ((off / regSize) + 1))
-				if slotIdx < 0 {
-					slotIdx = 0
-				}
+				f.Stack.WriteReg(int(dst.Value)+int(inst.Offset), inst.OpCode.Size(), src)
 
-				// Grow stack if needed
-				if len(f.Stack.Slots) <= slotIdx {
-					newSlots := make([]StackSlot, slotIdx+1)
-					copy(newSlots, f.Stack.Slots)
-					f.Stack.Slots = newSlots
-				}
-
-				slot := &f.Stack.Slots[slotIdx]
-				slotOff := regSize + (off % regSize)
-				if off%regSize == 0 {
-					slotOff = 0
-				}
-
-				if slotOff == 0 && inst.OpCode.Size() == asm.DWord {
-					for i := 0; i < regSize; i++ {
-						slot.SlotTypes[i] = SlotTypeSpill
-					}
-					spilled := src
-					slot.Spilled = &spilled
-				} else {
-					for i := slotOff; i < slotOff+int64(inst.OpCode.Size().Sizeof()); i++ {
-						slot.SlotTypes[i] = SlotTypeMisc
-					}
-				}
-
-			// case asm.OpCode(asm.XAddMode):
+			// TODO case asm.OpCode(asm.XAddMode):
 			// 	// Store to stack atomically
 			default:
 				return fmt.Errorf("unimplemented Stx inst: %v", inst)

@@ -19,8 +19,9 @@ import (
 
 func graphCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "graph {ELF} {program name}",
-		Short: "Generate a control-flow graph for an eBPF program",
+		Use:     "graph {ELF} {program name}",
+		Aliases: []string{"cfg"},
+		Short:   "Generate a control-flow graph for an eBPF program",
 		Long: "This command reads the provided ELF file and creates a control-flow graph for the given program. " +
 			"The program is broken up into 'blocks' of code by BPF-to-BPF function calls and branching instructions. " +
 			"Red arrows indicate the non-branching path, green arrows indicate the branching path, yellow arrows " +
