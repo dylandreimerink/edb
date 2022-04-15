@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/cilium/ebpf/asm"
+	"github.com/dylandreimerink/edb/pkg/helperdata"
 )
 
 type helperInstructions struct {
@@ -21,14 +22,14 @@ func helperInstrumentation(fpOff, primarySaveOff int16) map[asm.BuiltinFunc]help
 	}
 
 	helperInstr = make(map[asm.BuiltinFunc]helperInstructions)
-	for fn, helper := range helpers {
+	for fn, helper := range helperdata.Signatures {
 		var inst helperInstructions
 
 		// Send all input params
-		inst.pre = sendRInScalars(len(helper.params), fpOff, primarySaveOff)
+		inst.pre = sendRInScalars(len(helper.Params), fpOff, primarySaveOff)
 
 		// Send return value if not void
-		if helper.retType != "void" {
+		if helper.RetType.Name != "void" {
 			inst.post = sendROutScalar(asm.R0, fpOff)
 		}
 
