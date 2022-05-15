@@ -2,13 +2,11 @@ module github.com/dylandreimerink/edb
 
 go 1.18
 
-replace github.com/cilium/ebpf => github.com/dylandreimerink/ebpf v0.8.1-0.20220304200500-9aa26fe85b03
-
 replace github.com/google/gopacket => github.com/dylandreimerink/gopacket v1.1.20-0.20220126223506-0d3623bffc1f
 
 require (
 	github.com/c-bata/go-prompt v0.2.6
-	github.com/cilium/ebpf v0.8.0
+	github.com/cilium/ebpf v0.8.2-0.20220511142539-2e33f5e2fb54
 	github.com/davecgh/go-spew v1.1.1
 	github.com/dylandreimerink/mimic v0.0.8
 	github.com/emicklei/dot v0.16.0

@@ -9,6 +9,7 @@ import (
 
 	prompt "github.com/c-bata/go-prompt"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/btf"
 	"github.com/dylandreimerink/mimic"
 	"github.com/lithammer/fuzzysearch/fuzzy"
 	"github.com/mgutz/ansi"
@@ -142,15 +143,11 @@ func getBTFFilename(spec *ebpf.ProgramSpec, instruction int) string {
 		return ""
 	}
 
-	type Filenamer interface {
-		FileName() string
-	}
-
 	// Walk up, until we found the nearest not empty filename
 	var filename string
 	for i := instruction; filename == "" && i >= 0; i-- {
 		src := spec.Instructions[i].Source()
-		if lineInfo, ok := src.(Filenamer); ok {
+		if lineInfo, ok := src.(*btf.Line); ok {
 			filename = lineInfo.FileName()
 		}
 	}
@@ -176,14 +173,10 @@ func getBTFLineNumber(spec *ebpf.ProgramSpec, instruction int) int {
 		return 0
 	}
 
-	type LineNumberer interface {
-		LineNumber() uint32
-	}
-
 	var lineNumber int
 	for i := instruction; lineNumber == 0 && i >= 0; i-- {
 		src := spec.Instructions[i].Source()
-		if lineInfo, ok := src.(LineNumberer); ok {
+		if lineInfo, ok := src.(*btf.Line); ok {
 			lineNumber = int(lineInfo.LineNumber())
 		}
 	}
