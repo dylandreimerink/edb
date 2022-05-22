@@ -115,11 +115,26 @@ var cmdMap = Command{
 func listMapsExec(args []string) {
 	for name, m := range vmEmulator.Maps {
 		fmt.Printf("%s:\n", green(name))
-		// TODO print Key and Value types from BTF
+
 		spec := m.GetSpec()
 		fmt.Printf("        Type: %s\n", spec.Type)
-		fmt.Printf("    Key size: %d bytes\n", spec.KeySize)
-		fmt.Printf("  Value size: %d bytes\n", spec.ValueSize)
+		fmt.Print("         Key: ")
+
+		if m.GetSpec().Key != nil && m.GetSpec().Key.TypeName() != "" {
+			cType := blue(strings.TrimSpace(BtfToCDef(m.GetSpec().Key, 14)))
+			fmt.Printf("%s (%d bytes)\n", cType, spec.KeySize)
+		} else {
+			fmt.Printf("%d bytes\n", spec.KeySize)
+		}
+
+		fmt.Print("       Value: ")
+		if m.GetSpec().Value != nil && m.GetSpec().Value.TypeName() != "" {
+			cType := yellow(strings.TrimSpace(BtfToCDef(m.GetSpec().Value, 14)))
+			fmt.Printf("%s (%d bytes)\n", cType, spec.ValueSize)
+		} else {
+			fmt.Printf("%d bytes\n", spec.ValueSize)
+		}
+
 		fmt.Printf(" Max entries: %d\n", spec.MaxEntries)
 		fmt.Printf("       Flags: %d\n\n", spec.Flags)
 		// TODO decode flags into human readable strings
@@ -235,7 +250,12 @@ func mapReadAllExec(args []string) {
 			return
 		}
 
-		kStr := fmt.Sprintf("%0*X", ks, k)
+		var kStr string
+		if spec.Key == nil {
+			kStr = fmt.Sprintf("%0*X", ks, k)
+		} else {
+			kStr = BtfBytesToCValue(spec.Key, k, 0, false)
+		}
 
 		// TODO format the key bytes using BTF type if available
 
@@ -260,7 +280,9 @@ func mapReadAllExec(args []string) {
 						vStr = fmt.Sprintf("%s -> <%s>", vStr, green(entry.Name))
 					}
 				default:
-					// TODO format the bytes using BTF type
+					if spec.Value != nil {
+						vStr = yellow(BtfBytesToCValue(spec.Value, vVal, 0, false))
+					}
 				}
 			}
 		}
@@ -504,17 +526,6 @@ func mapPopExec(args []string) {
 	}
 
 	vStr := fmt.Sprintf("%0*X", vs, valVal)
-
-	// if bfmt, ok := mt.Value.(gobpfld.BTFValueFormater); ok {
-	// 	var vw strings.Builder
-	// 	_, err = bfmt.FormatValue(value, &vw, true)
-	// 	if err != nil {
-	// 		// TODO just fall back to showing bytes if we have formatting errors.
-	// 		printRed("Error while formatting value: %s\n", err)
-	// 		return
-	// 	}
-	// 	vStr = vw.String()
-	// }
 
 	fmt.Printf("%s\n", yellow(vStr))
 }

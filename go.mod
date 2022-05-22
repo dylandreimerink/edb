@@ -8,7 +8,7 @@ require (
 	github.com/c-bata/go-prompt v0.2.6
 	github.com/cilium/ebpf v0.8.2-0.20220511142539-2e33f5e2fb54
 	github.com/davecgh/go-spew v1.1.1
-	github.com/dylandreimerink/mimic v0.0.8
+	github.com/dylandreimerink/mimic v0.0.9
 	github.com/emicklei/dot v0.16.0
 	github.com/go-delve/delve v1.8.0
 	github.com/google/gopacket v1.1.19
@@ -34,6 +34,6 @@ require (
 	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f // indirect
 	golang.org/x/arch v0.0.0-20190927153633-4e8777c89be4 // indirect
 	golang.org/x/net v0.0.0-20211015210444-4f30a5c0130f // indirect
-	golang.org/x/sys v0.0.0-20211205182925-97ca703d548d // indirect
+	golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e // indirect
 	golang.org/x/text v0.3.7 // indirect
 )
