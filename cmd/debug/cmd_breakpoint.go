@@ -110,14 +110,9 @@ func setBreakpointExec(args []string) {
 		return
 
 	case *locspec.AddrLocationSpec:
-		// TODO if only the instruction number is specified i.e "*123", just use the current program, makes sense for
-		// 		single program debugging sessions(likely most of them)
-
 		parts := strings.Split(spec.AddrExpr, ":")
-		if len(parts) != 2 {
-			printRed("Invalid address locspec, must be formatted like " +
-				"*<program name|program index>:<instruction number>\n")
-			return
+		if len(parts) == 1 {
+			parts = []string{process.Program.Name, parts[0]}
 		}
 
 		var progSpec *ebpf.ProgramSpec
