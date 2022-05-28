@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/cilium/ebpf"
+	"github.com/dylandreimerink/edb/elf"
 	"github.com/dylandreimerink/mimic"
 )
 
@@ -36,11 +37,12 @@ func loadExec(args []string) {
 		return
 	}
 
-	// ef, err := elf.NewFile(bytes.NewReader(eb))
-	// if err != nil {
-	// 	printRed("elf new file: %s\n", err)
-	// 	return
-	// }
+	ef, err := elf.Open(args[0])
+	if err != nil {
+		printRed("elf new file: %s\n", err)
+		return
+	}
+	defer ef.Close()
 
 	// Make a sorted list of map names so they always are inserted in the same order between debugging sessions.
 	// This repeatability makes using numeric indexes in macros possible
@@ -58,7 +60,7 @@ func loadExec(args []string) {
 			return
 		}
 
-		err = vmEmulator.AddMap(m)
+		err = vmEmulator.AddMap(name, m)
 		if err != nil {
 			printRed("error add map to emulator: %s\n", err)
 			return
@@ -84,13 +86,13 @@ func loadExec(args []string) {
 			return
 		}
 
-		// det, err := newDET(ef, name)
-		// if err != nil {
-		// 	printRed("new det: %s\n", err)
-		// 	return
-		// }
+		det, err := newDET(ef, name)
+		if err != nil {
+			printRed("new det: %s\n", err)
+			return
+		}
 
-		// progDwarf = append(progDwarf, det)
+		progDwarf[name] = det
 
 		fmt.Printf("Loaded program '%s' at program index %d\n", name, progIndex)
 	}

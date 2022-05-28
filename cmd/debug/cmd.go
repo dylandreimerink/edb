@@ -41,6 +41,8 @@ var (
 	blue   = ansi.ColorFunc("blue")
 	green  = ansi.ColorFunc("green")
 	yellow = ansi.ColorFunc("yellow")
+	gray   = ansi.ColorFunc("8")
+	cyan   = ansi.ColorFunc("cyan")
 
 	blueStrike  = ansi.ColorFunc("blue+s")
 	whiteStrike = ansi.ColorFunc("white+s")
@@ -75,7 +77,7 @@ func init() {
 		cmdStep,
 		cmdList,
 		cmdMap,
-		// cmdLocals,
+		cmdLocals,
 		cmdMemory,
 		cmdBreakpoint,
 		cmdContinue,

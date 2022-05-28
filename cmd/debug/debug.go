@@ -17,7 +17,7 @@ var (
 	contexts []mimic.Context
 
 	entrypoint int = 0
-	// progDwarf = []*DET{nil}
+	progDwarf      = map[string]*DET{}
 
 	breakpoints []Breakpoint
 )

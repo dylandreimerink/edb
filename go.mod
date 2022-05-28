@@ -6,9 +6,9 @@ replace github.com/google/gopacket => github.com/dylandreimerink/gopacket v1.1.2
 
 require (
 	github.com/c-bata/go-prompt v0.2.6
-	github.com/cilium/ebpf v0.8.2-0.20220511142539-2e33f5e2fb54
+	github.com/cilium/ebpf v0.9.0
 	github.com/davecgh/go-spew v1.1.1
-	github.com/dylandreimerink/mimic v0.0.9
+	github.com/dylandreimerink/mimic v0.0.10
 	github.com/emicklei/dot v0.16.0
 	github.com/go-delve/delve v1.8.0
 	github.com/google/gopacket v1.1.19
