@@ -83,6 +83,7 @@ func init() {
 		cmdContinue,
 		cmdContinueAll,
 		cmdMacro,
+		cmdCallsStack,
 		// TODO add `files` command to list all source files of all or a specific program
 	}
 }
